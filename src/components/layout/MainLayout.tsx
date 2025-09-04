@@ -1,6 +1,7 @@
 import React from 'react';
 import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { AppSidebar } from '../AppSidebar';
+import logo from '../../../public/logo.jpg'
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -18,9 +19,9 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             <SidebarTrigger className="text-foreground" />
             <div className="flex items-center gap-2 ml-4">
               <div className="w-6 h-6 bg-primary rounded-md flex items-center justify-center">
-                <span className="text-primary-foreground text-xs font-bold">S</span>
+                <img src={logo} className="text-primary-foreground text-xs font-bold"/>
               </div>
-              <span className="font-semibold text-foreground">SensorViz</span>
+              <span className="font-semibold text-foreground">Kinova</span>
             </div>
           </header>
 
