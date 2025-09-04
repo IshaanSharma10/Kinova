@@ -53,14 +53,21 @@ export function AppSidebar() {
   return (
     <Sidebar className="border-sidebar-border bg-sidebar">
       <SidebarHeader className="border-b border-sidebar-border p-4">
-        <div className="flex items-center gap-3">
-          <div className=" bg-primary rounded-3xl flex items-center justify-center ">
-            <img src={logo} alt="" className='h-12 w-12 rounded-2xl'/>
-          </div>
-          {open && (
-            <span className="text-4xl font-bold text-sidebar-foreground">Kinova</span>
-          )}
-        </div>
+        <div className="flex items-center gap-2 sm:gap-3">
+  <div className="bg-primary rounded-2xl flex items-center justify-center">
+    <img 
+      src={logo} 
+      alt="Kinova Logo" 
+      className="h-8 w-8 sm:h-10 sm:w-10 md:h-12 md:w-12 rounded-xl transition-all duration-300"
+    />
+  </div>
+  {open && (
+    <span className="text-lg sm:text-2xl md:text-3xl lg:text-4xl font-bold text-sidebar-foreground transition-all duration-300">
+      Kinova
+    </span>
+  )}
+</div>
+
       </SidebarHeader>
 
       <SidebarContent>
