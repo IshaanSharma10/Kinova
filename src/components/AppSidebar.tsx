@@ -125,26 +125,31 @@ export function AppSidebar() {
         )}
       </SidebarContent>
 
-      <SidebarFooter className="border-t border-sidebar-border p-3">
-        <SidebarMenuItem>
-          <SidebarMenuButton asChild>
-            <NavLink
-              to="/profile"
-              className="flex items-center gap-3 p-3 rounded-lg text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent hover:text-primary transition-all duration-300"
-            >
-              <div className="h-8 w-8 bg-gradient-primary rounded-full flex items-center justify-center shrink-0">
-                <User className="h-4 w-4 text-primary" />
-              </div>
-              {open && (
-                <div className="flex flex-col min-w-0">
-                  <span className="text-sm font-medium truncate">Dr. Smith</span>
-                  <span className="text-xs text-muted-foreground truncate">Administrator</span>
-                </div>
-              )}
-            </NavLink>
-          </SidebarMenuButton>
-        </SidebarMenuItem>
-      </SidebarFooter>
+    <SidebarFooter className="border-t border-sidebar-border p-3">
+  <SidebarMenuItem>
+    <NavLink
+      to="/settings"
+      className={({ isActive }) =>
+        `flex items-center gap-3 p-3 rounded-lg text-sm font-medium transition-all duration-300 ${
+          isActive
+            ? 'bg-primary text-primary-foreground shadow-glow'
+            : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-primary'
+        }`
+      }
+    >
+      <div className="h-8 w-8 bg-gradient-primary rounded-full flex items-center justify-center shrink-0">
+        <User className="h-4 w-4 text-primary" />
+      </div>
+      {open && (
+        <div className="flex flex-col min-w-0">
+          <span className="text-sm font-medium truncate">Dr. Smith</span>
+          <span className="text-xs text-muted-foreground truncate">Administrator</span>
+        </div>
+      )}
+    </NavLink>
+  </SidebarMenuItem>
+</SidebarFooter>
+
     </Sidebar>
   );
 }

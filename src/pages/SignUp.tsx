@@ -8,6 +8,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Activity, Eye, EyeOff, Mail, Lock, User, Building2 } from 'lucide-react';
 import { gsap } from 'gsap';
+import logo from '../../public/logo.jpg'
 
 export default function SignUp() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -28,7 +29,7 @@ export default function SignUp() {
   });
 
   useEffect(() => {
-    document.title = 'Sign Up - SensorViz';
+    document.title = 'Sign Up - Kinova';
     
     if (containerRef.current && logoRef.current && formRef.current) {
       const tl = gsap.timeline();
@@ -80,9 +81,9 @@ export default function SignUp() {
         <div ref={logoRef} className="text-center">
           <div className="flex items-center justify-center gap-2 sm:gap-3 mb-2">
             <div className="w-10 h-10 sm:w-12 sm:h-12 bg-primary rounded-xl flex items-center justify-center shadow-glow">
-              <Activity className="w-6 h-6 sm:w-7 sm:h-7 text-primary-foreground" />
+              <img src={logo} className="w-6 h-6 sm:w-7 sm:h-7 text-primary-foreground" />
             </div>
-            <span className="text-xl sm:text-2xl font-bold text-foreground">SensorViz</span>
+            <span className="text-xl sm:text-2xl font-bold text-foreground">Kinova</span>
           </div>
           <p className="text-muted-foreground text-sm sm:text-base">Gait Analysis Platform</p>
         </div>
@@ -280,7 +281,7 @@ export default function SignUp() {
 
         {/* Footer */}
         <div className="text-center text-xs text-muted-foreground">
-          <p>© 2024 SensorViz. All rights reserved.</p>
+          <p>© 2025 . All rights reserved.</p>
         </div>
       </div>
     </div>

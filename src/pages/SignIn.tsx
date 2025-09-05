@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Activity, Eye, EyeOff, Mail, Lock } from 'lucide-react';
 import { gsap } from 'gsap';
+import logo from '../../public/logo.jpg'
 
 export default function SignIn() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -21,7 +22,7 @@ export default function SignIn() {
   });
 
   useEffect(() => {
-    document.title = 'Sign In - SensorViz';
+    document.title = 'Sign In - Kinova';
     
     if (containerRef.current && logoRef.current && formRef.current) {
       const tl = gsap.timeline();
@@ -62,14 +63,20 @@ export default function SignIn() {
   return (
     <div ref={containerRef} className="min-h-screen bg-background flex items-center justify-center p-4 sm:p-6">
       <div className="w-full max-w-md space-y-6 sm:space-y-8">
-        {/* Logo */}
-        <div ref={logoRef} className="text-center">
-          <div className="flex items-center justify-center gap-2 sm:gap-3 mb-2">
-            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-primary rounded-xl flex items-center justify-center shadow-glow">
-              <Activity className="w-6 h-6 sm:w-7 sm:h-7 text-primary-foreground" />
-            </div>
-            <span className="text-xl sm:text-2xl font-bold text-foreground">SensorViz</span>
-          </div>
+       {/* Logo */}
+<div ref={logoRef} className="text-center">
+<div className="flex items-center justify-center gap-2 sm:gap-3 mb-2">
+  <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-primary to-primary/80 
+                  flex items-center justify-center">
+    <img 
+      src={logo} 
+      alt="Kinova Logo" 
+      className="w-10 h-10 sm:w-12 sm:h-12 object-contain"
+    />
+  </div>
+  <span className="text-4xl sm:text-2xl font-bold text-foreground">Kinova</span>
+</div>
+
           <p className="text-muted-foreground text-sm sm:text-base">Gait Analysis Platform</p>
         </div>
 
@@ -173,7 +180,7 @@ export default function SignIn() {
 
         {/* Footer */}
         <div className="text-center text-xs text-muted-foreground">
-          <p>© 2024 SensorViz. All rights reserved.</p>
+          <p>© 2025 Kinova. All rights reserved.</p>
         </div>
       </div>
     </div>
