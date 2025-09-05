@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   User, 
@@ -37,10 +37,48 @@ export function ProfileDropdown({
   } 
 }: ProfileDropdownProps) {
   const navigate = useNavigate();
+  const [currentUser, setCurrentUser] = useState(user);
 
-  const handleSignOut = () => {
-    // Here you would typically clear authentication tokens/state
-    navigate('/sign-in');
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      try {
+        const response = await fetch('/api/user/profile', {
+          method: 'GET',
+          credentials: 'include',
+        });
+        if (response.ok) {
+          const data = await response.json();
+          const userData = data.user;
+          setCurrentUser({
+            name: userData.firstName && userData.lastName ? `${userData.firstName} ${userData.lastName}` : user.name,
+            email: userData.email || user.email,
+            role: userData.role || user.role,
+          });
+        } else {
+          console.error('Failed to fetch user profile');
+        }
+      } catch (error) {
+        console.error('Error fetching user profile:', error);
+      }
+    };
+    fetchUserProfile();
+  }, []);
+
+  const handleSignOut = async () => {
+    try {
+      const response = await fetch('/api/user/logout', {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (response.ok) {
+        // Clear any client-side auth state if needed
+        navigate('/sign-in');
+      } else {
+        console.error('Logout failed');
+      }
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
   };
 
   const menuItems = [
