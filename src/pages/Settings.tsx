@@ -42,7 +42,7 @@ export default function Settings() {
   ];
 
   useEffect(() => {
-    document.title = 'SensorViz - Settings';
+    document.title = 'Kinova - Settings';
     
     if (headerRef.current) {
       gsap.fromTo(
