@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,9 +14,12 @@ export default function SignUp() {
   const containerRef = useRef<HTMLDivElement>(null);
   const logoRef = useRef<HTMLDivElement>(null);
   const formRef = useRef<HTMLDivElement>(null);
-  
+  const navigate = useNavigate();
+
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -68,10 +71,39 @@ export default function SignUp() {
     }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Handle sign up logic here
-    console.log('Sign up attempt:', formData);
+    setError('');
+    setIsLoading(true);
+
+    try {
+      const response = await fetch('/api/user/signup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          email: formData.email,
+          password: formData.password,
+          confirmPassword: formData.confirmPassword,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        // Redirect to sign in page after successful signup
+        navigate('/sign-in');
+      } else {
+        setError(data.message || 'Sign up failed');
+      }
+    } catch (err) {
+      setError('Network error. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -238,7 +270,7 @@ export default function SignUp() {
                   id="agreeToTerms"
                   name="agreeToTerms"
                   checked={formData.agreeToTerms}
-                  onCheckedChange={(checked) => 
+                  onCheckedChange={(checked) =>
                     setFormData(prev => ({ ...prev, agreeToTerms: !!checked }))
                   }
                   required
@@ -255,12 +287,20 @@ export default function SignUp() {
                 </Label>
               </div>
 
+              {/* Error Message */}
+              {error && (
+                <div className="text-sm text-red-500 text-center">
+                  {error}
+                </div>
+              )}
+
               {/* Sign Up Button */}
-              <Button 
-                type="submit" 
+              <Button
+                type="submit"
                 className="w-full bg-primary hover:bg-primary/90 text-primary-foreground shadow-glow"
+                disabled={isLoading}
               >
-                Create Account
+                {isLoading ? 'Creating Account...' : 'Create Account'}
               </Button>
 
               {/* Sign In Link */}
