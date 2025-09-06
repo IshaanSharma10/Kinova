@@ -10,15 +10,25 @@ import {
   CheckCircle,
   Brain,
   Download,
-  RefreshCw
+  RefreshCw,
+  Clock,
+  Activity,
+  Footprints,
 } from 'lucide-react';
 import { gsap } from 'gsap';
+import { useGaitMetrics } from '@/hooks/useGaitMetrics';
+
+// Recharts components
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 export default function Insights() {
   const headerRef = useRef<HTMLDivElement>(null);
   const scoreRef = useRef<HTMLDivElement>(null);
   const curveRef = useRef<HTMLDivElement>(null);
   const recommendationsRef = useRef<HTMLDivElement>(null);
+
+  // Corrected: Removed `refetch` as it's not provided by the base hook
+  const { data: gaitData, loading, error } = useGaitMetrics();
 
   useEffect(() => {
     document.title = 'Kinova - Insights';
@@ -56,54 +66,40 @@ export default function Insights() {
     }
   }, []);
 
-  const gaitScore = 87;
-  const scoreHistory = Array.from({ length: 30 }, (_, i) => ({
-    day: i + 1,
-    score: Math.random() * 20 + 75 + Math.sin(i / 5) * 5
-  }));
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-xl font-semibold text-foreground animate-pulse">
+          Analyzing gait data...
+        </p>
+      </div>
+    );
+  }
 
-  const insights = [
-    {
-      type: 'positive',
-      icon: <CheckCircle className="w-5 h-5" />,
-      title: 'Excellent Balance Control',
-      description: 'Your equilibrium scores have improved by 12% over the past week.',
-      color: 'success'
-    },
-    {
-      type: 'warning',
-      icon: <AlertTriangle className="w-5 h-5" />,
-      title: 'Cadence Variability',
-      description: 'Step rhythm shows increased variation during longer sessions.',
-      color: 'warning'
-    },
-    {
-      type: 'positive',
-      icon: <TrendingUp className="w-5 h-5" />,
-      title: 'Stride Consistency',
-      description: 'Walking pattern has become more regular and predictable.',
-      color: 'primary'
-    }
-  ];
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-xl font-semibold text-destructive">
+          Error loading data: {error.message}
+        </p>
+      </div>
+    );
+  }
 
-  const recommendations = [
-    {
-      title: 'Balance Training',
-      description: 'Incorporate single-leg stands for 30 seconds daily',
-      priority: 'high'
-    },
-    {
-      title: 'Rhythm Exercises',
-      description: 'Practice metronome-guided walking to improve cadence',
-      priority: 'medium'
-    },
-    {
-      title: 'Flexibility Work',
-      description: 'Hip and ankle mobility exercises before sessions',
-      priority: 'low'
-    }
-  ];
+  if (!gaitData || gaitData.length === 0) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-xl font-semibold text-muted-foreground">
+          No historical data available to generate insights.
+        </p>
+      </div>
+    );
+  }
 
+  // --- Dynamic Analysis based on real data ---
+  const latestData = gaitData.slice(-30);
+  const gaitScore = latestData.reduce((sum, entry) => sum + entry.equilibriumScore, 0) / latestData.length;
+  
   const getScoreColor = (score: number) => {
     if (score >= 85) return 'text-success';
     if (score >= 70) return 'text-warning';
@@ -115,6 +111,98 @@ export default function Insights() {
     if (score >= 70) return 'Good';
     return 'Needs Improvement';
   };
+
+  const insights = [];
+  const recommendations = [];
+
+  // Insight 1: Overall Trend
+  const startScore = latestData[0]?.equilibriumScore || 0;
+  const endScore = latestData[latestData.length - 1]?.equilibriumScore || 0;
+  const trend = ((endScore - startScore) / startScore) * 100;
+  if (trend > 5) {
+    insights.push({
+      type: 'positive',
+      icon: <TrendingUp className="w-5 h-5" />,
+      title: 'Strong Upward Trend',
+      description: `Your equilibrium scores have improved by ${trend.toFixed(1)}% over recent sessions.`,
+      color: 'primary'
+    });
+  } else if (trend < -5) {
+    insights.push({
+      type: 'warning',
+      icon: <AlertTriangle className="w-5 h-5" />,
+      title: 'Downward Trend',
+      description: `Equilibrium scores have declined by ${Math.abs(trend).toFixed(1)}%. It might be time to reassess.`,
+      color: 'destructive'
+    });
+    recommendations.push({
+      title: 'Focused Drills',
+      description: 'Review and practice foundational balance exercises more frequently.',
+      priority: 'high'
+    });
+  } else {
+    insights.push({
+      type: 'positive',
+      icon: <CheckCircle className="w-5 h-5" />,
+      title: 'Stable Performance',
+      description: 'Your gait score is consistent, showing stable and reliable performance.',
+      color: 'success'
+    });
+  }
+
+  // Insight 2: Cadence Consistency
+  const cadenceValues = latestData.map(d => d.cadence);
+  const avgCadence = cadenceValues.reduce((a, b) => a + b, 0) / cadenceValues.length;
+  const cadenceVariance = Math.sqrt(cadenceValues.reduce((sum, val) => sum + Math.pow(val - avgCadence, 2), 0) / cadenceValues.length);
+  if (cadenceVariance > 20) {
+    insights.push({
+      type: 'warning',
+      icon: <AlertTriangle className="w-5 h-5" />,
+      title: 'Cadence Variability',
+      description: 'Step rhythm shows increased variation, which can impact efficiency.',
+      color: 'warning'
+    });
+    recommendations.push({
+      title: 'Rhythm Exercises',
+      description: 'Practice metronome-guided walking to improve cadence consistency.',
+      priority: 'medium'
+    });
+  } else {
+    insights.push({
+      type: 'positive',
+      icon: <Footprints className="w-5 h-5" />,
+      title: 'Consistent Cadence',
+      description: 'Your walking rhythm is stable, contributing to efficient movement.',
+      color: 'success'
+    });
+  }
+
+  // Insight 3: Walking Speed
+  const avgSpeed = latestData.reduce((sum, entry) => sum + entry.walkingSpeed, 0) / latestData.length;
+  if (avgSpeed > 1) { // Assuming avgSpeed is in m/s, 1 m/s is a typical brisk walk
+    insights.push({
+      type: 'positive',
+      icon: <Activity className="w-5 h-5" />,
+      title: 'Effective Speed',
+      description: `You are maintaining a brisk walking speed of ${avgSpeed.toFixed(2)} m/s.`,
+      color: 'success'
+    });
+  }
+
+  // Final recommendations check
+  if (recommendations.length === 0) {
+    recommendations.push({
+      title: 'Maintain Consistency',
+      description: 'Continue your current training to sustain excellent performance.',
+      priority: 'low'
+    });
+  }
+
+  // Prepare data for the Recharts graph, sorted from oldest to newest
+  const chartData = [...latestData].sort((a, b) => a.timestamp - b.timestamp).map(d => ({
+    timestamp: new Date(d.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    score: d.equilibriumScore
+  }));
 
   return (
     <div className="min-h-screen bg-background p-4 sm:p-6">
@@ -128,6 +216,7 @@ export default function Insights() {
             </p>
           </div>
           <div className="flex gap-2 sm:gap-3">
+            {/* Removed onClick={refetch} */}
             <Button variant="outline" size="sm" className="flex-1 sm:flex-none">
               <RefreshCw className="w-4 h-4 mr-1 sm:mr-2" />
               <span className="hidden sm:inline">Refresh Analysis</span>
@@ -170,7 +259,7 @@ export default function Insights() {
                 </svg>
                 <div className="absolute inset-0 flex items-center justify-center flex-col">
                   <span className={`text-3xl font-bold ${getScoreColor(gaitScore)}`}>
-                    {gaitScore}
+                    {gaitScore.toFixed(0)}
                   </span>
                   <span className="text-xs text-muted-foreground">/ 100</span>
                 </div>
@@ -181,7 +270,7 @@ export default function Insights() {
                 {getScoreLabel(gaitScore)}
               </Badge>
               <p className="text-sm text-muted-foreground mt-2">
-                Based on 8 gait parameters over the last 30 days
+                Based on key gait parameters over the last 30 data points
               </p>
             </div>
           </CardContent>
@@ -194,43 +283,19 @@ export default function Insights() {
               <CardTitle className="text-lg font-semibold text-foreground">
                 Score Progression
               </CardTitle>
-              <p className="text-sm text-muted-foreground">30-day gait score trend</p>
+              <p className="text-sm text-muted-foreground">Recent gait score trend</p>
             </CardHeader>
             <CardContent>
-              <div className="h-64 bg-card/30 rounded-lg border border-border/30 p-4">
-                <svg className="w-full h-full">
-                  <defs>
-                    <linearGradient id="scoreGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                      <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity="0.3"/>
-                      <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity="0.1"/>
-                    </linearGradient>
-                  </defs>
-                  {/* Score curve */}
-                  <path
-                    d={`M 0 ${200 - (scoreHistory[0].score - 60) * 3} ${scoreHistory.map((d, i) => 
-                      `L ${(i / (scoreHistory.length - 1)) * 320} ${200 - (d.score - 60) * 3}`
-                    ).join(' ')}`}
-                    fill="none"
-                    stroke="hsl(var(--primary))"
-                    strokeWidth="2"
-                    className="drop-shadow-sm"
-                  />
-                  {/* Area fill */}
-                  <path
-                    d={`M 0 ${200 - (scoreHistory[0].score - 60) * 3} ${scoreHistory.map((d, i) => 
-                      `L ${(i / (scoreHistory.length - 1)) * 320} ${200 - (d.score - 60) * 3}`
-                    ).join(' ')} L 320 200 L 0 200 Z`}
-                    fill="url(#scoreGradient)"
-                  />
-                  {/* Current score point */}
-                  <circle
-                    cx="320"
-                    cy={200 - (scoreHistory[scoreHistory.length - 1].score - 60) * 3}
-                    r="4"
-                    fill="hsl(var(--primary))"
-                    className="drop-shadow-sm"
-                  />
-                </svg>
+              <div className="h-64 rounded-lg p-2">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={chartData} margin={{ top: 10, right: 30, left: -20, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
+                    <XAxis dataKey="timestamp" stroke="hsl(var(--muted-foreground))" tick={{ fontSize: 10 }} />
+                    <YAxis stroke="hsl(var(--muted-foreground))" tick={{ fontSize: 10 }} />
+                    <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: 'none', borderRadius: '8px' }} />
+                    <Line type="monotone" dataKey="score" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} />
+                  </LineChart>
+                </ResponsiveContainer>
               </div>
             </CardContent>
           </Card>

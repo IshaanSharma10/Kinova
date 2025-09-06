@@ -183,7 +183,7 @@ export default function Dashboard() {
         {/* Header */}
         <div ref={headerRef} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Kinova Dashboard</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Dashboard</h1>
             <p className="text-muted-foreground mt-1 sm:mt-2 text-sm sm:text-base">
               Real-time gait analysis and movement tracking
             </p>
