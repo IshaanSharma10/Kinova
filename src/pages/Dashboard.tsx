@@ -5,7 +5,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { 
   Activity, 
   Zap, 
-  Thermometer, 
   Timer,
   Target,
   TrendingUp,
@@ -13,11 +12,14 @@ import {
   Footprints
 } from 'lucide-react';
 import { gsap } from 'gsap';
+import { useGaitMetrics } from '@/hooks/useGaitMetrics';
 
 export default function Dashboard() {
   const headerRef = useRef<HTMLDivElement>(null);
   const modelViewerRef = useRef<HTMLDivElement>(null);
   const sensorDataRef = useRef<HTMLDivElement>(null);
+
+  const { data: gaitMetricsData, loading, error } = useGaitMetrics();
 
   useEffect(() => {
     document.title = 'Kinova Dashboard';
@@ -47,85 +49,133 @@ export default function Dashboard() {
     }
   }, []);
 
-  const gaitMetrics = [
-    {
-      title: 'Equilibrium',
-      value: '95.2',
-      unit: '%',
-      status: 'Excellent',
-      icon: <Target className="h-5 w-5" />,
-      trend: '+2.3%',
-      color: 'success' as const
-    },
-    {
-      title: 'Postural Sway',
-      value: '12.4',
-      unit: 'mm',
-      status: 'Normal',
-      icon: <Activity className="h-5 w-5" />,
-      trend: '-5.1%',
-      color: 'primary' as const
-    },
-    {
-      title: 'Cadence',
-      value: '108',
-      unit: 'steps/min',
-      status: 'Optimal',
-      icon: <Timer className="h-5 w-5" />,
-      trend: '+1.8%',
-      color: 'success' as const
-    },
-    {
-      title: 'Frequency',
-      value: '1.8',
-      unit: 'Hz',
-      status: 'Normal',
-      icon: <Zap className="h-5 w-5" />,
-      color: 'warning' as const
-    },
-    {
-      title: 'Step Width',
-      value: '14.2',
-      unit: 'cm',
-      status: 'Stable',
-      icon: <Footprints className="h-5 w-5" />,
-      trend: '+0.5%',
-      color: 'primary' as const
-    },
-    {
-      title: 'Stride Length',
-      value: '68.5',
-      unit: 'cm',
-      status: 'Good',
-      icon: <BarChart3 className="h-5 w-5" />,
-      trend: '+2.1%',
-      color: 'success' as const
-    },
-    {
-      title: 'Walking Speed',
-      value: '1.24',
-      unit: 'm/s',
-      status: 'Average',
-      icon: <TrendingUp className="h-5 w-5" />,
-      color: 'warning' as const
-    },
-    {
-      title: 'Phase Mean',
-      value: '62.3',
-      unit: '%',
-      status: 'Balanced',
-      icon: <Activity className="h-5 w-5" />,
-      trend: '-1.2%',
-      color: 'purple' as const
-    }
-  ];
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-xl font-semibold text-foreground animate-pulse">
+          Loading real-time gait data...
+        </p>
+      </div>
+    );
+  }
 
-  const sensorData = [
-    { label: 'Equilibrium', value: '2.4 m/s²', status: 'LIVE', color: 'success' },
-    { label: 'Cadence', value: '108 steps', status: 'LIVE', color: 'primary' },
-    { label: 'Walking Speed', value: '1.24 m/s', status: 'LIVE', color: 'warning' },
-    { label: 'Postural Sway', value: '12.4 mm', status: 'LIVE', color: 'purple' }
-  ];
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-xl font-semibold text-destructive">
+          Error loading data: {error.message}
+        </p>
+      </div>
+    );
+  }
+
+  const latestGaitEntry = gaitMetricsData?.[0];
+  const latestSensorData = latestGaitEntry?.sensors;
+
+  const iconMap: { [key: string]: JSX.Element } = {
+    equilibrium: <Target className="h-5 w-5" />,
+    posturalSway: <Activity className="h-5 w-5" />,
+    cadence: <Timer className="h-5 w-5" />,
+    frequency: <Zap className="h-5 w-5" />,
+    stepWidth: <Footprints className="h-5 w-5" />,
+    strideLength: <BarChart3 className="h-5 w-5" />,
+    walkingSpeed: <TrendingUp className="h-5 w-5" />,
+    phaseMean: <Activity className="h-5 w-5" />,
+  };
+
+  const formattedGaitMetrics = latestGaitEntry ? [
+    { 
+      title: 'Equilibrium', 
+      value: latestGaitEntry.equilibriumScore, 
+      unit: '%', 
+      status: 'Excellent', 
+      icon: iconMap.equilibrium, 
+      color: 'success' as const 
+    },
+    { 
+      title: 'Postural Sway', 
+      value: latestGaitEntry.posturalSway, 
+      unit: 'mm', 
+      status: 'Normal', 
+      icon: iconMap.posturalSway, 
+      color: 'primary' as const 
+    },
+    { 
+      title: 'Cadence', 
+      value: latestGaitEntry.cadence, 
+      unit: 'steps/min', 
+      status: 'Optimal', 
+      icon: iconMap.cadence, 
+      color: 'success' as const 
+    },
+    { 
+      title: 'Frequency', 
+      value: latestGaitEntry.frequency, 
+      unit: 'Hz', 
+      status: 'Normal', 
+      icon: iconMap.frequency, 
+      color: 'warning' as const 
+    },
+    { 
+      title: 'Step Width', 
+      value: latestGaitEntry.stepWidth, 
+      unit: 'cm', 
+      status: 'Stable', 
+      icon: iconMap.stepWidth, 
+      color: 'primary' as const 
+    },
+    { 
+      title: 'Stride Length', 
+      value: latestGaitEntry.strideLength, 
+      unit: 'cm', 
+      status: 'Good', 
+      icon: iconMap.strideLength, 
+      color: 'success' as const 
+    },
+    { 
+      title: 'Walking Speed', 
+      value: latestGaitEntry.walkingSpeed, 
+      unit: 'm/s', 
+      status: 'Average', 
+      icon: iconMap.walkingSpeed, 
+      color: 'warning' as const 
+    },
+    { 
+      title: 'Phase Mean', 
+      value: latestGaitEntry.gaitCyclePhaseMean, 
+      unit: '%', 
+      status: 'Balanced', 
+      icon: iconMap.phaseMean, 
+      color: 'purple' as const 
+    },
+  ] : [];
+
+  const formattedSensorData = latestSensorData ? [
+    { 
+      label: 'Equilibrium', 
+      value: `${latestGaitEntry?.equilibriumScore} %`, 
+      status: 'LIVE', 
+      color: 'success' as const
+    },
+    { 
+      label: 'Cadence', 
+      value: `${latestGaitEntry?.cadence} steps/min`, 
+      status: 'LIVE', 
+      color: 'primary' as const 
+    },
+    { 
+      label: 'Walking Speed', 
+      value: `${latestGaitEntry?.walkingSpeed} m/s`, 
+      status: 'LIVE', 
+      color: 'warning' as const 
+    },
+    { 
+      label: 'Postural Sway', 
+      value: `${latestGaitEntry?.posturalSway} mm`, 
+      status: 'LIVE', 
+      color: 'purple' as const 
+    },
+  ] : [];
 
   return (
     <div className="min-h-screen bg-background p-4 sm:p-6">
@@ -143,15 +193,14 @@ export default function Dashboard() {
 
         {/* Metrics Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-          {gaitMetrics.map((metric, index) => (
+          {formattedGaitMetrics.map((metric, index) => (
             <MetricCard
               key={metric.title}
               title={metric.title}
-              value={metric.value}
+              value={metric.value.toString()}
               unit={metric.unit}
               status={metric.status}
               icon={metric.icon}
-              trend={metric.trend}
               color={metric.color}
               delay={index * 100}
             />
@@ -203,7 +252,7 @@ export default function Dashboard() {
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              {sensorData.map((sensor, index) => (
+              {formattedSensorData.map((sensor) => (
                 <div key={sensor.label} className="flex items-center justify-between p-3 bg-card/30 rounded-lg border border-border/30">
                   <div className="flex items-center gap-3">
                     <Activity className="w-4 h-4 text-primary" />
