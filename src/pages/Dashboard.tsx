@@ -87,7 +87,7 @@ export default function Dashboard() {
     { 
       title: 'Equilibrium', 
       value: latestGaitEntry.equilibriumScore, 
-      unit: '%', 
+      unit: '', 
       status: 'Excellent', 
       icon: iconMap.equilibrium, 
       color: 'success' as const 
@@ -143,7 +143,7 @@ export default function Dashboard() {
     { 
       title: 'Phase Mean', 
       value: latestGaitEntry.gaitCyclePhaseMean, 
-      unit: '%', 
+      unit: '', 
       status: 'Balanced', 
       icon: iconMap.phaseMean, 
       color: 'purple' as const 
@@ -153,7 +153,7 @@ export default function Dashboard() {
   const formattedSensorData = latestSensorData ? [
     { 
       label: 'Equilibrium', 
-      value: `${latestGaitEntry?.equilibriumScore} %`, 
+      value: `${latestGaitEntry?.equilibriumScore} `, 
       status: 'LIVE', 
       color: 'success' as const
     },

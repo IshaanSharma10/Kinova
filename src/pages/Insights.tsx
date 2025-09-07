@@ -2,16 +2,12 @@ import React, { useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
 import { 
   TrendingUp, 
-  Target, 
   AlertTriangle, 
   CheckCircle,
   Brain,
   Download,
-  RefreshCw,
-  Clock,
   Activity,
   Footprints,
 } from 'lucide-react';
@@ -27,12 +23,12 @@ export default function Insights() {
   const curveRef = useRef<HTMLDivElement>(null);
   const recommendationsRef = useRef<HTMLDivElement>(null);
 
-  // Corrected: Removed `refetch` as it's not provided by the base hook
   const { data: gaitData, loading, error } = useGaitMetrics();
 
   useEffect(() => {
     document.title = 'Kinova - Insights';
     
+    // GSAP animations (unchanged)
     if (headerRef.current) {
       gsap.fromTo(
         headerRef.current,
@@ -86,7 +82,10 @@ export default function Insights() {
     );
   }
 
-  if (!gaitData || gaitData.length === 0) {
+  // Use the last 30 data points for analysis, which will be the most recent
+  const latestData = gaitData.slice(-30);
+
+  if (latestData.length === 0) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <p className="text-xl font-semibold text-muted-foreground">
@@ -95,10 +94,10 @@ export default function Insights() {
       </div>
     );
   }
-
+  
   // --- Dynamic Analysis based on real data ---
-  const latestData = gaitData.slice(-30);
-  const gaitScore = latestData.reduce((sum, entry) => sum + entry.equilibriumScore, 0) / latestData.length;
+  // The gait score is calculated by multiplying the equilibriumScore by 100 to bring it to a 0-100 scale.
+  const gaitScore = latestData.reduce((sum, entry) => sum + entry.equilibriumScore * 100, 0) / latestData.length;
   
   const getScoreColor = (score: number) => {
     if (score >= 85) return 'text-success';
@@ -116,8 +115,8 @@ export default function Insights() {
   const recommendations = [];
 
   // Insight 1: Overall Trend
-  const startScore = latestData[0]?.equilibriumScore || 0;
-  const endScore = latestData[latestData.length - 1]?.equilibriumScore || 0;
+  const startScore = latestData[0]?.equilibriumScore * 100 || 0;
+  const endScore = latestData[latestData.length - 1]?.equilibriumScore * 100 || 0;
   const trend = ((endScore - startScore) / startScore) * 100;
   if (trend > 5) {
     insights.push({
@@ -198,10 +197,10 @@ export default function Insights() {
     });
   }
 
-  // Prepare data for the Recharts graph, sorted from oldest to newest
-  const chartData = [...latestData].sort((a, b) => a.timestamp - b.timestamp).map(d => ({
+  // Prepare data for the Recharts graph
+  const chartData = latestData.map(d => ({
     timestamp: new Date(d.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    score: d.equilibriumScore
+    score: d.equilibriumScore * 100 // Scale the score for the chart as well
   }));
 
   return (
@@ -216,12 +215,6 @@ export default function Insights() {
             </p>
           </div>
           <div className="flex gap-2 sm:gap-3">
-            {/* Removed onClick={refetch} */}
-            <Button variant="outline" size="sm" className="flex-1 sm:flex-none">
-              <RefreshCw className="w-4 h-4 mr-1 sm:mr-2" />
-              <span className="hidden sm:inline">Refresh Analysis</span>
-              <span className="sm:hidden">Refresh</span>
-            </Button>
             <Button size="sm" className="flex-1 sm:flex-none">
               <Download className="w-4 h-4 mr-1 sm:mr-2" />
               <span className="hidden sm:inline">Export Report</span>
@@ -270,7 +263,7 @@ export default function Insights() {
                 {getScoreLabel(gaitScore)}
               </Badge>
               <p className="text-sm text-muted-foreground mt-2">
-                Based on key gait parameters over the last 30 data points
+                Based on key gait parameters over the last {latestData.length} data points
               </p>
             </div>
           </CardContent>

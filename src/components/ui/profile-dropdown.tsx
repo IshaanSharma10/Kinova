@@ -65,20 +65,21 @@ export function ProfileDropdown({
   }, []);
 
   const handleSignOut = async () => {
-    try {
-      const response = await fetch('/api/user/logout', {
-        method: 'POST',
-        credentials: 'include',
-      });
-      if (response.ok) {
-        // Clear any client-side auth state if needed
-        navigate('/sign-in');
-      } else {
-        console.error('Logout failed');
-      }
-    } catch (error) {
-      console.error('Logout error:', error);
-    }
+    // try {
+    //   const response = await fetch('/api/user/logout', {
+    //     method: 'POST',
+    //     credentials: 'include',
+    //   });
+    //   if (response.ok) {
+    //     // Clear any client-side auth state if needed
+    //     navigate('/sign-in');
+    //   } else {
+    //     console.error('Logout failed');
+    //   }
+    // } catch (error) {
+    //   console.error('Logout error:', error);
+    // }
+    navigate('/sign-in')
   };
 
   const menuItems = [

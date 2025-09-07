@@ -56,6 +56,27 @@ export default function SignUp() {
     }
   }, []);
 
+  //  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  //   const { name, value, type, checked } = e.target;
+  //   setFormData(prev => ({
+  //     ...prev,
+  //     [name]: type === 'checkbox' ? checked : value
+  //   }));
+  // };
+
+  // const handleSelectChange = (name: string, value: string) => {
+  //   setFormData(prev => ({
+  //     ...prev,
+  //     [name]: value
+  //   }));
+  // };
+
+  // const handleSubmit = (e: React.FormEvent) => {
+  //   e.preventDefault();
+  //   // Handle sign up logic here
+  //   console.log('Sign up attempt:', formData);
+  // };
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
     setFormData(prev => ({

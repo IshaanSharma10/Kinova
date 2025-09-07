@@ -13,7 +13,7 @@ export default function LiveView() {
   const recordingRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    document.title = 'SensorViz - Live View';
+    document.title = 'Kinova - Live View';
     
     if (headerRef.current) {
       gsap.fromTo(
