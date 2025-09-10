@@ -98,7 +98,7 @@ export default function SignUp() {
     setIsLoading(true);
 
     try {
-      const response = await fetch('/api/user/signup', {
+      const response = await fetch('https://internal-backend-1ju5.onrender.com/api/user/signup', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
