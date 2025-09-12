@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { MainLayout } from "./components/layout/MainLayout";
 import Dashboard from "./pages/Dashboard";
 import LiveView from "./pages/LiveView";
@@ -23,14 +23,17 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
+          {/* Redirect root ("/") to Sign In */}
+          <Route path="/" element={<Navigate to="/sign-in" replace />} />
+
           {/* Authentication Routes */}
           <Route path="/sign-in" element={<SignIn />} />
           <Route path="/sign-up" element={<SignUp />} />
-          <Route path="/forgot-password" element={<ForgotPassword/>} />
-          
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+
           {/* Main App Routes */}
           <Route
-            path="/"
+            path="/dashboard"
             element={
               <MainLayout>
                 <Dashboard />
@@ -69,8 +72,8 @@ const App = () => (
               </MainLayout>
             }
           />
-          
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+
+          {/* Catch-all NotFound */}
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import logo from '../../public/logo.jpg';
+import logo from '../../public/logo.jpg'
 import { NavLink, useLocation } from 'react-router-dom';
 import { 
   Activity, 
@@ -46,27 +46,20 @@ export function AppSidebar() {
   const { open } = useSidebar();
   const location = useLocation();
 
-  // State for user info
-  const [user, setUser] = useState<{ name?: string; role?: string }>({});
+  const [user, setUser] = useState<{ name?: string; email?: string } | null>(null);
 
   useEffect(() => {
     const storedUser = localStorage.getItem('user');
     if (storedUser) {
-      try {
-        setUser(JSON.parse(storedUser));
-      } catch {
-        setUser({});
-      }
+      setUser(JSON.parse(storedUser));
     }
   }, []);
 
-  const isActive = (path: string) => location.pathname === path;
   const getNavCls = ({ isActive }: { isActive: boolean }) =>
     isActive ? 'bg-primary text-primary-foreground shadow-glow' : 'hover:bg-sidebar-accent hover:text-primary';
 
   return (
     <Sidebar className="border-sidebar-border bg-sidebar">
-      {/* Header with Logo */}
       <SidebarHeader className="border-b border-sidebar-border p-4">
         <div className="flex items-center gap-2 sm:gap-3">
           <div className="bg-primary rounded-2xl flex items-center justify-center">
@@ -84,7 +77,6 @@ export function AppSidebar() {
         </div>
       </SidebarHeader>
 
-      {/* Main Navigation */}
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel className="text-muted-foreground text-xs font-semibold uppercase tracking-wide px-3">
@@ -111,7 +103,6 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {/* Sensors Section */}
         {open && (
           <SidebarGroup>
             <SidebarGroupLabel className="text-muted-foreground text-xs font-semibold uppercase tracking-wide px-3">
@@ -141,7 +132,7 @@ export function AppSidebar() {
         )}
       </SidebarContent>
 
-      {/* Footer with Dynamic User */}
+      {/* ✅ Dynamic User Info */}
       <SidebarFooter className="border-t border-sidebar-border p-3">
         <SidebarMenuItem>
           <NavLink
@@ -160,10 +151,10 @@ export function AppSidebar() {
             {open && (
               <div className="flex flex-col min-w-0">
                 <span className="text-sm font-medium truncate">
-                  {user?.name || "Guest User"}
+                  {user?.name || 'Guest User'}
                 </span>
                 <span className="text-xs text-muted-foreground truncate">
-                  {user?.role || "Member"}
+                  {user?.email || 'user'}
                 </span>
               </div>
             )}
