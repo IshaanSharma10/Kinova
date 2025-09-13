@@ -60,29 +60,40 @@ export default function Analytics() {
     );
   }
 
-  if (!gaitData || gaitData.length === 0) {
+  // Filter out any invalid entries before processing
+  const validGaitData = gaitData ? gaitData.filter(entry => entry && typeof entry.equilibriumScore === 'number' && typeof entry.cadence === 'number') : [];
+
+  if (validGaitData.length === 0) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <p className="text-xl font-semibold text-muted-foreground">
-          No historical data available.
+          No valid historical data available to display.
         </p>
       </div>
     );
   }
 
-  // Calculate dynamic metrics from the fetched data
-  const totalEquilibrium = gaitData.reduce((sum, entry) => sum + entry.equilibriumScore, 0);
-  const avgEquilibrium = totalEquilibrium / gaitData.length;
-  const peakCadence = gaitData.reduce((max, entry) => Math.max(max, entry.cadence), 0);
+  // Calculate dynamic metrics from the filtered data
+  const totalEquilibrium = validGaitData.reduce((sum, entry) => sum + entry.equilibriumScore, 0);
+  const avgEquilibrium = totalEquilibrium / validGaitData.length;
   
-  const avgStrideLength = gaitData.reduce((sum, entry) => sum + entry.strideLength, 0) / gaitData.length;
-  const variance = gaitData.reduce((sum, entry) => sum + Math.pow(entry.strideLength - avgStrideLength, 2), 0) / gaitData.length;
+  const peakCadence = validGaitData.reduce((max, entry) => Math.max(max, entry.cadence), 0);
+  
+  const totalStrideLength = validGaitData.reduce((sum, entry) => sum + entry.strideLength, 0);
+  const avgStrideLength = totalStrideLength / validGaitData.length;
+  
+  const variance = validGaitData.reduce((sum, entry) => sum + Math.pow(entry.strideLength - avgStrideLength, 2), 0) / validGaitData.length;
   const strideVariance = Math.sqrt(variance);
+
+  // Use a helper function to format a value, with a fallback for NaN
+  const formatValue = (value: number, fallback: string = 'N/A') => {
+    return isNaN(value) ? fallback : value.toLocaleString();
+  };
 
   const analyticsMetrics = [
     {
       title: 'Avg Equilibrium',
-      value: avgEquilibrium.toFixed(2),
+      value: formatValue(avgEquilibrium),
       unit: '%',
       status: avgEquilibrium > 90 ? 'Excellent' : 'Good',
       icon: <Target className="h-5 w-5" />,
@@ -91,7 +102,7 @@ export default function Analytics() {
     },
     {
       title: 'Peak Cadence',
-      value: peakCadence.toFixed(0),
+      value: formatValue(peakCadence, 'N/A'),
       unit: 'steps/min',
       status: 'High',
       icon: <Timer className="h-5 w-5" />,
@@ -100,7 +111,7 @@ export default function Analytics() {
     },
     {
       title: 'Stride Variance',
-      value: `±${strideVariance.toFixed(2)}`,
+      value: isNaN(strideVariance) ? 'N/A' : `±${strideVariance.toFixed(2)}`,
       unit: 'cm',
       status: strideVariance < 3 ? 'Stable' : 'Unstable',
       icon: <Footprints className="h-5 w-5" />,
@@ -108,7 +119,7 @@ export default function Analytics() {
     },
     {
       title: 'Data Points',
-      value: gaitData.length.toLocaleString(),
+      value: validGaitData.length.toLocaleString(),
       unit: '',
       status: 'Collected',
       icon: <BarChart3 className="h-5 w-5" />,
@@ -116,8 +127,7 @@ export default function Analytics() {
     }
   ];
 
-  // Prepare chart data. We'll show the last 24 data points, sorted from oldest to newest.
-  const chartData = [...gaitData].slice(-24).sort((a, b) => a.timestamp - b.timestamp).map(d => ({
+  const chartData = validGaitData.slice(-24).sort((a, b) => a.timestamp - b.timestamp).map(d => ({
     timestamp: new Date(d.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     equilibrium: d.equilibriumScore,
     cadence: d.cadence,
