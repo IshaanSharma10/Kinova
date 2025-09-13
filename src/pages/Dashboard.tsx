@@ -117,9 +117,10 @@ export default function Dashboard() {
       color: 'warning' as const 
     },
    { 
-  label: 'Steps', 
+    title:'Steps', 
   value: `${latestGaitEntry?.steps} steps`, 
   status: 'LIVE', 
+  icon:iconMap.stepWidth,
   color: 'purple' as const // or change the color
 },
     { 
