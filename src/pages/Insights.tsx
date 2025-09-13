@@ -13,46 +13,50 @@ import {
 } from 'lucide-react';
 import { gsap } from 'gsap';
 import { useGaitMetrics } from '@/hooks/useGaitMetrics';
+import { GaitDataEntry } from '@/types';
 
 // Recharts components
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
-// --- UPDATED HELPER FUNCTIONS ---
+// --- HELPER FUNCTIONS ---
 
-// Maps a number from one range to another.
+/**
+ * Maps a number from one range to another.
+ * @param value The number to map.
+ * @param inMin The minimum value of the input range.
+ * @param inMax The maximum value of the input range.
+ * @param outMin The minimum value of the output range.
+ * @param outMax The maximum value of the output range.
+ * @returns The mapped and clamped value.
+ */
 const mapValue = (value: number, inMin: number, inMax: number, outMin: number, outMax: number): number => {
   const mapped = ((value - inMin) * (outMax - outMin)) / (inMax - inMin) + outMin;
-  return Math.max(outMin, Math.min(outMax, mapped)); // Clamp the value to the output range
+  return Math.max(outMin, Math.min(outMax, mapped));
 };
 
-// Calculates a raw composite gait score based on key metrics.
-const calculateRawCompositeScore = (entry: any): number => {
+/**
+ * Calculates a raw composite gait score based on key metrics.
+ * @param entry A single gait data entry.
+ * @returns The raw composite score, or 0 if data is invalid.
+ */
+const calculateRawCompositeScore = (entry: GaitDataEntry): number => {
   if (!entry || typeof entry.equilibriumScore !== 'number' || typeof entry.cadence !== 'number' || typeof entry.posturalSway !== 'number') {
     return 0;
   }
 
-  // Adjusted weights for a more balanced score
   const weights = {
     equilibrium: 0.45,
     cadence: 0.35,
     sway: 0.2,
   };
 
-  // 1. Map Equilibrium Score (higher is better). Adjusted to be more forgiving.
-  // We'll use a slightly wider range to allow for lower equilibrium values to still get a good sub-score.
   const equilibriumScore = mapValue(entry.equilibriumScore, 0.05, 0.4, 0, 100);
-
-  // 2. Map Cadence (optimal range is best).
   const optimalCadence = 110; 
-  const maxDeviation = 35; // Increased max deviation to be more forgiving
+  const maxDeviation = 35;
   const cadenceDeviation = Math.abs(entry.cadence - optimalCadence);
   const cadenceMappedScore = mapValue(cadenceDeviation, 0, maxDeviation, 100, 0); 
-
-  // 3. Map Postural Sway (lower is better).
-  // We'll use a slightly more forgiving range for sway as well.
   const swayMappedScore = mapValue(entry.posturalSway, 25, 1, 0, 100); 
 
-  // Combine the scores with weights
   const finalScore = (
     equilibriumScore * weights.equilibrium +
     cadenceMappedScore * weights.cadence +
@@ -62,19 +66,7 @@ const calculateRawCompositeScore = (entry: any): number => {
   return finalScore;
 };
 
-// NEW FUNCTION: Scales the composite score to the desired range
-const scaleGaitScore = (score: number): number => {
-  // Let's assume the raw composite score (from the above function)
-  // typically falls between 20 and 70 based on your data.
-  // We will map this to a new range of 55 to 70.
-  const initialRangeMin = 20;
-  const initialRangeMax = 70;
-  const targetRangeMin = 55;
-  const targetRangeMax = 70;
-
-  // Use the mapValue helper to scale the score
-  return mapValue(score, initialRangeMin, initialRangeMax, targetRangeMin, targetRangeMax);
-};
+// --- INSIGHTS COMPONENT ---
 
 export default function Insights() {
   const headerRef = useRef<HTMLDivElement>(null);
@@ -87,40 +79,22 @@ export default function Insights() {
   useEffect(() => {
     document.title = 'Kinova - Insights';
     
-    // GSAP animations (unchanged)
+    // GSAP animations to run on initial component load.
     if (headerRef.current) {
-      gsap.fromTo(
-        headerRef.current,
-        { y: -50, opacity: 0 },
-        { y: 0, opacity: 1, duration: 0.8, ease: 'power2.out' }
-      );
+      gsap.fromTo(headerRef.current, { y: -50, opacity: 0 }, { y: 0, opacity: 1, duration: 0.8, ease: 'power2.out' });
     }
-
     if (scoreRef.current) {
-      gsap.fromTo(
-        scoreRef.current,
-        { scale: 0.8, opacity: 0 },
-        { scale: 1, opacity: 1, duration: 1, ease: 'back.out(1.7)', delay: 0.3 }
-      );
+      gsap.fromTo(scoreRef.current, { scale: 0.8, opacity: 0 }, { scale: 1, opacity: 1, duration: 1, ease: 'back.out(1.7)', delay: 0.3 });
     }
-
     if (curveRef.current) {
-      gsap.fromTo(
-        curveRef.current,
-        { x: -50, opacity: 0 },
-        { x: 0, opacity: 1, duration: 0.8, ease: 'power2.out', delay: 0.5 }
-      );
+      gsap.fromTo(curveRef.current, { x: -50, opacity: 0 }, { x: 0, opacity: 1, duration: 0.8, ease: 'power2.out', delay: 0.5 });
     }
-
     if (recommendationsRef.current) {
-      gsap.fromTo(
-        recommendationsRef.current,
-        { y: 50, opacity: 0 },
-        { y: 0, opacity: 1, duration: 0.8, ease: 'power2.out', delay: 0.7 }
-      );
+      gsap.fromTo(recommendationsRef.current, { y: 50, opacity: 0 }, { y: 0, opacity: 1, duration: 0.8, ease: 'power2.out', delay: 0.7 });
     }
   }, []);
 
+  // Handle loading and error states
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -141,7 +115,7 @@ export default function Insights() {
     );
   }
 
-  // Use the last 30 data points for analysis, which will be the most recent
+  // Use the most recent 30 valid data points for analysis
   const latestData = gaitData?.slice(-30).filter(entry => 
     entry && 
     typeof entry.equilibriumScore === 'number' && 
@@ -161,113 +135,112 @@ export default function Insights() {
   
   // Calculate the average composite gait score
   const averageRawScore = latestData.reduce((sum, entry) => sum + calculateRawCompositeScore(entry), 0) / latestData.length;
-  // Apply the new scaling function to get the final score
-  const gaitScore = scaleGaitScore(averageRawScore);
+
+  // Use the raw score directly and clamp it to the 0-100 range.
+  // This is the key fix for a dynamic score.
+  const gaitScore = Math.max(0, Math.min(100, averageRawScore));
 
 
-  const getScoreColor = (score: number) => {
+  const getScoreColor = (score: number): string => {
     if (score >= 85) return 'text-success';
     if (score >= 70) return 'text-warning';
     return 'text-destructive';
   };
 
-  const getScoreLabel = (score: number) => {
+  const getScoreLabel = (score: number): string => {
     if (score >= 85) return 'Excellent';
     if (score >= 70) return 'Good';
     return 'Needs Improvement';
   };
 
+  // Generate insights and recommendations based on the latest data trends
   const insights = [];
   const recommendations = [];
 
-  // Insight 1: Overall Trend (based on the new composite score)
   const startRawScore = calculateRawCompositeScore(latestData[0]);
   const endRawScore = calculateRawCompositeScore(latestData[latestData.length - 1]);
-  const trend = ((endRawScore - startRawScore) / startRawScore) * 100;
+  // Use Math.abs to avoid division by zero or negative start scores
+  const trend = ((endRawScore - startRawScore) / Math.abs(startRawScore || 1)) * 100;
 
   if (trend > 5) {
-    insights.push({
-      type: 'positive',
-      icon: <TrendingUp className="w-5 h-5" />,
-      title: 'Strong Upward Trend',
-      description: `Your overall gait score has improved by ${trend.toFixed(1)}% over recent sessions.`,
-      color: 'primary'
+    insights.push({ 
+      type: 'positive', 
+      icon: <TrendingUp className="w-5 h-5" />, 
+      title: 'Strong Upward Trend', 
+      description: `Your overall gait score has improved by ${trend.toFixed(1)}% over recent sessions.`, 
+      color: 'primary' 
     });
   } else if (trend < -5) {
-    insights.push({
-      type: 'warning',
-      icon: <AlertTriangle className="w-5 h-5" />,
-      title: 'Downward Trend',
-      description: `Your gait score has declined by ${Math.abs(trend).toFixed(1)}%. It might be time to reassess.`,
-      color: 'destructive'
+    insights.push({ 
+      type: 'warning', 
+      icon: <AlertTriangle className="w-5 h-5" />, 
+      title: 'Downward Trend', 
+      description: `Your gait score has declined by ${Math.abs(trend).toFixed(1)}%. It might be time to reassess.`, 
+      color: 'destructive' 
     });
-    recommendations.push({
-      title: 'Focused Drills',
-      description: 'Review and practice foundational balance exercises more frequently.',
-      priority: 'high'
+    recommendations.push({ 
+      title: 'Focused Drills', 
+      description: 'Review and practice foundational balance exercises more frequently.', 
+      priority: 'high' 
     });
   } else {
-    insights.push({
-      type: 'positive',
-      icon: <CheckCircle className="w-5 h-5" />,
-      title: 'Stable Performance',
-      description: 'Your overall gait score is consistent, showing stable and reliable performance.',
-      color: 'success'
+    insights.push({ 
+      type: 'positive', 
+      icon: <CheckCircle className="w-5 h-5" />, 
+      title: 'Stable Performance', 
+      description: 'Your overall gait score is consistent, showing stable and reliable performance.', 
+      color: 'success' 
     });
   }
 
-  // Insight 2: Cadence Consistency
   const cadenceValues = latestData.map(d => d.cadence);
   const avgCadence = cadenceValues.reduce((a, b) => a + b, 0) / cadenceValues.length;
   const cadenceVariance = Math.sqrt(cadenceValues.reduce((sum, val) => sum + Math.pow(val - avgCadence, 2), 0) / cadenceValues.length);
   if (cadenceVariance > 20) {
-    insights.push({
-      type: 'warning',
-      icon: <AlertTriangle className="w-5 h-5" />,
-      title: 'Cadence Variability',
-      description: 'Step rhythm shows increased variation, which can impact efficiency.',
-      color: 'warning'
+    insights.push({ 
+      type: 'warning', 
+      icon: <AlertTriangle className="w-5 h-5" />, 
+      title: 'Cadence Variability', 
+      description: 'Step rhythm shows increased variation, which can impact efficiency.', 
+      color: 'warning' 
     });
-    recommendations.push({
-      title: 'Rhythm Exercises',
-      description: 'Practice metronome-guided walking to improve cadence consistency.',
-      priority: 'medium'
+    recommendations.push({ 
+      title: 'Rhythm Exercises', 
+      description: 'Practice metronome-guided walking to improve cadence consistency.', 
+      priority: 'medium' 
     });
   } else {
-    insights.push({
-      type: 'positive',
-      icon: <Footprints className="w-5 h-5" />,
-      title: 'Consistent Cadence',
-      description: 'Your walking rhythm is stable, contributing to efficient movement.',
-      color: 'success'
+    insights.push({ 
+      type: 'positive', 
+      icon: <Footprints className="w-5 h-5" />, 
+      title: 'Consistent Cadence', 
+      description: 'Your walking rhythm is stable, contributing to efficient movement.', 
+      color: 'success' 
     });
   }
 
-  // Insight 3: Walking Speed
   const avgSpeed = latestData.reduce((sum, entry) => sum + entry.walkingSpeed, 0) / latestData.length;
-  if (avgSpeed > 1) { // Assuming avgSpeed is in m/s
-    insights.push({
-      type: 'positive',
-      icon: <Activity className="w-5 h-5" />,
-      title: 'Effective Speed',
-      description: `You are maintaining a brisk walking speed of ${avgSpeed.toFixed(2)} m/s.`,
-      color: 'success'
+  if (avgSpeed > 1) {
+    insights.push({ 
+      type: 'positive', 
+      icon: <Activity className="w-5 h-5" />, 
+      title: 'Effective Speed', 
+      description: `You are maintaining a brisk walking speed of ${avgSpeed.toFixed(2)} m/s.`, 
+      color: 'success' 
     });
   }
 
-  // Final recommendations check
   if (recommendations.length === 0) {
-    recommendations.push({
-      title: 'Maintain Consistency',
-      description: 'Continue your current training to sustain excellent performance.',
-      priority: 'low'
+    recommendations.push({ 
+      title: 'Maintain Consistency', 
+      description: 'Continue your current training to sustain excellent performance.', 
+      priority: 'low' 
     });
   }
 
-  // Prepare data for the Recharts graph
   const chartData = latestData.map(d => ({
     timestamp: new Date(d.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    score: scaleGaitScore(calculateRawCompositeScore(d))
+    score: Math.max(0, Math.min(100, calculateRawCompositeScore(d)))
   }));
 
   return (

@@ -84,6 +84,14 @@ export default function Dashboard() {
   };
 
   const formattedGaitMetrics = latestGaitEntry ? [
+
+     { 
+    title:'Steps', 
+  value: `${latestGaitEntry?.steps} steps`, 
+  status: 'LIVE', 
+  icon:iconMap.stepWidth,
+  color: 'purple' as const // or change the color
+     },
     { 
       title: 'Equilibrium', 
       value: latestGaitEntry.equilibriumScore, 
@@ -116,17 +124,11 @@ export default function Dashboard() {
       icon: iconMap.frequency, 
       color: 'warning' as const 
     },
-   { 
-    title:'Steps', 
-  value: `${latestGaitEntry?.steps} steps`, 
-  status: 'LIVE', 
-  icon:iconMap.stepWidth,
-  color: 'purple' as const // or change the color
-},
+  
     { 
       title: 'Stride Length', 
       value: latestGaitEntry.strideLength, 
-      unit: 'cm', 
+      unit: 'm', 
       status: 'Good', 
       icon: iconMap.strideLength, 
       color: 'success' as const 
