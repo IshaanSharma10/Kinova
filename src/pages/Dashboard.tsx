@@ -95,7 +95,7 @@ export default function Dashboard() {
     { 
       title: 'Postural Sway', 
       value: latestGaitEntry.posturalSway, 
-      unit: 'mm', 
+      unit: 'deg', 
       status: 'Normal', 
       icon: iconMap.posturalSway, 
       color: 'primary' as const 
@@ -116,14 +116,12 @@ export default function Dashboard() {
       icon: iconMap.frequency, 
       color: 'warning' as const 
     },
-    { 
-      title: 'Step Width', 
-      value: latestGaitEntry.stepWidth, 
-      unit: 'cm', 
-      status: 'Stable', 
-      icon: iconMap.stepWidth, 
-      color: 'primary' as const 
-    },
+   { 
+  label: 'Steps', 
+  value: `${latestGaitEntry?.steps} steps`, 
+  status: 'LIVE', 
+  color: 'purple' as const // or change the color
+},
     { 
       title: 'Stride Length', 
       value: latestGaitEntry.strideLength, 
