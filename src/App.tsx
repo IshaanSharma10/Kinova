@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { MainLayout } from "./components/layout/MainLayout";
 import Dashboard from "./pages/Dashboard";
-import LiveView from "./pages/LiveView";
+import WorkoutTracker from "./pages/WorkoutTracker";
 import Analytics from "./pages/Analytics";
 import Insights from "./pages/Insights";
 import Settings from "./pages/Settings";
@@ -41,7 +41,7 @@ const App = () => (
             path="/live-view"
             element={
               <MainLayout>
-                <LiveView />
+               <WorkoutTracker/>
               </MainLayout>
             }
           />
