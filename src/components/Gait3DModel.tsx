@@ -39,7 +39,7 @@ export default function Gait3DModel() {
           maxPolarAngle={Math.PI / 2}
 
           autoRotate={autoRotate}
-          autoRotateSpeed={1.2}   // <-- fixed rotation speed
+          autoRotateSpeed={1.9}   // <-- fixed rotation speed
 
           onStart={() => setAutoRotate(false)}  // STOP rotation on user interaction
         />
