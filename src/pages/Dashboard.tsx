@@ -1,8 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 
-import Gait3DModel from "@/components/Gait3DModel" // ✅ correct for React
+import Gait3DModel from "@/components/Gait3DModel"
 import { Center } from "@react-three/drei";
-
 
 import { MetricCard } from '@/components/ui/metric-card';
 import { LiveIndicator } from '@/components/ui/live-indicator';
@@ -57,6 +56,22 @@ export default function Dashboard() {
     }
   }, []);
 
+  // CRITICAL DEBUG LOGGING
+  useEffect(() => {
+    console.log('=== DASHBOARD DEBUG ===');
+    console.log('gaitMetricsData:', gaitMetricsData);
+    console.log('loading:', loading);
+    console.log('error:', error);
+    
+    if (gaitMetricsData && gaitMetricsData.length > 0) {
+      const latest = gaitMetricsData[0];
+      console.log('Latest entry full object:', latest);
+      console.log('Latest entry JSON:', JSON.stringify(latest, null, 2));
+      console.log('Object.keys:', Object.keys(latest));
+      console.log('Object.values:', Object.values(latest));
+    }
+  }, [gaitMetricsData, loading, error]);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -77,8 +92,17 @@ export default function Dashboard() {
     );
   }
 
-  const latestGaitEntry = gaitMetricsData?.[0];
-  const latestSensorData = latestGaitEntry?.sensors;
+  if (!gaitMetricsData || gaitMetricsData.length === 0) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-xl font-semibold text-muted-foreground">
+          No gait data available. Waiting for sensor data...
+        </p>
+      </div>
+    );
+  }
+
+  const latestGaitEntry = gaitMetricsData[0];
 
   const iconMap: { [key: string]: JSX.Element } = {
     equilibrium: <Target className="h-5 w-5" />,
@@ -88,103 +112,120 @@ export default function Dashboard() {
     stepWidth: <Footprints className="h-5 w-5" />,
     strideLength: <BarChart3 className="h-5 w-5" />,
     walkingSpeed: <TrendingUp className="h-5 w-5" />,
-    phaseMean: <Activity className="h-5 w-5" />,
   };
 
-  const formattedGaitMetrics = latestGaitEntry
-    ? [
-        {
-          title: "Steps",
-          value: `${latestGaitEntry?.steps} steps`,
-          status: "LIVE",
-          icon: iconMap.stepWidth,
-          color: "purple" as const,
-        },
-        {
-          title: "Equilibrium",
-          value: latestGaitEntry.equilibriumScore,
-          status: "Excellent",
-          icon: iconMap.equilibrium,
-          color: "success" as const,
-        },
-        {
-          title: "Postural Sway",
-          value: latestGaitEntry.posturalSway,
-          unit: "deg",
-          status: "Normal",
-          icon: iconMap.posturalSway,
-          color: "primary" as const,
-        },
-        {
-          title: "Cadence",
-          value: latestGaitEntry.cadence,
-          unit: "steps/min",
-          status: "Optimal",
-          icon: iconMap.cadence,
-          color: "success" as const,
-        },
-        {
-          title: "Frequency",
-          value: latestGaitEntry.frequency,
-          unit: "Hz",
-          status: "Normal",
-          icon: iconMap.frequency,
-          color: "warning" as const,
-        },
-        {
-          title: "Stride Length",
-          value: latestGaitEntry.strideLength,
-          unit: "m",
-          status: "Good",
-          icon: iconMap.strideLength,
-          color: "success" as const,
-        },
-        {
-          title: "Walking Speed",
-          value: latestGaitEntry.walkingSpeed,
-          unit: "m/s",
-          status: "Average",
-          icon: iconMap.walkingSpeed,
-          color: "warning" as const,
-        },
-        {
-          title: "Phase Mean",
-          value: latestGaitEntry.gaitCyclePhaseMean,
-          status: "Balanced",
-          icon: iconMap.phaseMean,
-          color: "purple" as const,
-        },
-      ]
-    : [];
+  // Direct access helper
+  const getValue = (obj: any, key: string) => {
+    const value = obj[key];
+    console.log(`getValue(${key}):`, value, 'type:', typeof value);
+    return value;
+  };
 
-  const formattedSensorData = latestSensorData
-    ? [
-        {
-          label: "Equilibrium",
-          value: `${latestGaitEntry?.equilibriumScore}`,
-          status: "LIVE",
-          color: "success" as const,
-        },
-        {
-          label: "Cadence",
-          value: `${latestGaitEntry?.cadence} steps/min`,
-          status: "LIVE",
-          color: "primary" as const,
-        },
-        {
-          label: "Walking Speed",
-          value: `${latestGaitEntry?.walkingSpeed} m/s`,
-          status: "LIVE",
-          color: "warning" as const,
-        },
-        {
-          label: "Postural Sway",
-          value: `${latestGaitEntry?.posturalSway} mm`,
-          status: "LIVE",
-          color: "purple" as const,
-        },
-      ]
-    : [];
+  // Format helper
+  const formatValue = (value: any, decimals: number = 2): string => {
+    if (value === null || value === undefined || value === '') {
+      return 'N/A';
+    }
+    if (typeof value === 'number') {
+      return value.toFixed(decimals);
+    }
+    return String(value);
+  };
+
+  const formattedGaitMetrics = [
+    {
+      title: "Steps",
+      value: formatValue(getValue(latestGaitEntry, 'steps'), 0),
+      unit: "steps",
+      status: "LIVE",
+      icon: iconMap.stepWidth,
+      color: "purple" as const,
+    },
+    {
+      title: "Equilibrium",
+      value: formatValue(getValue(latestGaitEntry, 'equilibriumScore'), 4),
+      status: "Excellent",
+      icon: iconMap.equilibrium,
+      color: "success" as const,
+    },
+    {
+      title: "Postural Sway",
+      value: formatValue(getValue(latestGaitEntry, 'posturalSway'), 2),
+      unit: "mm",
+      status: "Normal",
+      icon: iconMap.posturalSway,
+      color: "primary" as const,
+    },
+    {
+      title: "Cadence",
+      value: formatValue(getValue(latestGaitEntry, 'cadence'), 2),
+      unit: "steps/min",
+      status: "Optimal",
+      icon: iconMap.cadence,
+      color: "success" as const,
+    },
+    {
+      title: "Frequency",
+      value: formatValue(getValue(latestGaitEntry, 'frequency'), 3),
+      unit: "Hz",
+      status: "Normal",
+      icon: iconMap.frequency,
+      color: "warning" as const,
+    },
+    {
+      title: "Stride Length",
+      value: formatValue(getValue(latestGaitEntry, 'strideLength'), 3),
+      unit: "m",
+      status: "Good",
+      icon: iconMap.strideLength,
+      color: "success" as const,
+    },
+    {
+      title: "Walking Speed",
+      value: formatValue(getValue(latestGaitEntry, 'walkingSpeed'), 4),
+      unit: "m/s",
+      status: "Average",
+      icon: iconMap.walkingSpeed,
+      color: "warning" as const,
+    },
+    {
+      title: "Step Width",
+      value: formatValue(getValue(latestGaitEntry, 'stepWidth'), 3),
+      unit: "m",
+      status: "Balanced",
+      icon: iconMap.stepWidth,
+      color: "purple" as const,
+    },
+  ];
+
+  console.log('formattedGaitMetrics:', formattedGaitMetrics);
+
+  const formattedSensorData = [
+    {
+      label: "Equilibrium",
+      value: formatValue(getValue(latestGaitEntry, 'equilibriumScore'), 4),
+      status: "LIVE",
+      color: "success" as const,
+    },
+    {
+      label: "Cadence",
+      value: `${formatValue(getValue(latestGaitEntry, 'cadence'), 2)} steps/min`,
+      status: "LIVE",
+      color: "primary" as const,
+    },
+    {
+      label: "Walking Speed",
+      value: `${formatValue(getValue(latestGaitEntry, 'walkingSpeed'), 4)} m/s`,
+      status: "LIVE",
+      color: "warning" as const,
+    },
+    {
+      label: "Postural Sway",
+      value: `${formatValue(getValue(latestGaitEntry, 'posturalSway'), 2)} mm`,
+      status: "LIVE",
+      color: "purple" as const,
+    },
+  ];
 
   return (
     <div className="min-h-screen bg-background p-4 sm:p-6">
@@ -211,7 +252,7 @@ export default function Dashboard() {
             <MetricCard
               key={metric.title}
               title={metric.title}
-              value={metric.value.toString()}
+              value={metric.value}
               unit={metric.unit}
               status={metric.status}
               icon={metric.icon}
@@ -239,10 +280,10 @@ export default function Dashboard() {
               </CardHeader>
 
               <CardContent className="h-[500px]">
-  <div className="rounded-lg overflow-hidden border border-border/30 w-full h-full">
-    <Gait3DModel />
-  </div>
-</CardContent>
+                <div className="rounded-lg overflow-hidden border border-border/30 w-full h-full">
+                  <Gait3DModel />
+                </div>
+              </CardContent>
             </Card>
           </div>
 

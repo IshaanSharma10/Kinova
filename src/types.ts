@@ -22,6 +22,7 @@ export interface GaitDataEntry {
   steps: number;
   strideLength: number;
   timestamp: number;
+  _key?: string;
   walkingSpeed: number;
 }
 

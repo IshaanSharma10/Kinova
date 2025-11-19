@@ -11,12 +11,14 @@ import {
   Activity,
   Timer,
   Footprints,
+  TrendingUp,
+  Zap,
 } from 'lucide-react';
 import { gsap } from 'gsap';
 import { useGaitMetrics } from '@/hooks/useGaitMetrics';
 
 // Import Recharts components
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 export default function Analytics() {
   const headerRef = useRef<HTMLDivElement>(null);
@@ -26,9 +28,8 @@ export default function Analytics() {
   const { data: gaitData, loading, error } = useGaitMetrics();
 
   useEffect(() => {
-    document.title = 'Kinova- Analytics';
+    document.title = 'Kinova - Analytics';
     
-    // GSAP animations (unchanged)
     if (headerRef.current) {
       gsap.fromTo(headerRef.current, { y: -50, opacity: 0 }, { y: 0, opacity: 1, duration: 0.8, ease: 'power2.out' });
     }
@@ -60,8 +61,19 @@ export default function Analytics() {
     );
   }
 
-  // Filter out any invalid entries before processing
-  const validGaitData = gaitData ? gaitData.filter(entry => entry && typeof entry.equilibriumScore === 'number' && typeof entry.cadence === 'number') : [];
+  // Filter out any invalid entries (like 'average_scores') before processing
+  const validGaitData = gaitData 
+    ? gaitData.filter(entry => 
+        entry && 
+        entry._key && 
+        entry._key.startsWith('-') && // Only Firebase push IDs
+        typeof entry.equilibriumScore === 'number' && 
+        typeof entry.cadence === 'number' &&
+        typeof entry.strideLength === 'number' &&
+        typeof entry.walkingSpeed === 'number' &&
+        typeof entry.posturalSway === 'number'
+      ) 
+    : [];
 
   if (validGaitData.length === 0) {
     return (
@@ -73,7 +85,7 @@ export default function Analytics() {
     );
   }
 
-  // Calculate dynamic metrics from the filtered data
+  // Calculate dynamic metrics from ALL the filtered data
   const totalEquilibrium = validGaitData.reduce((sum, entry) => sum + entry.equilibriumScore, 0);
   const avgEquilibrium = totalEquilibrium / validGaitData.length;
   
@@ -82,44 +94,58 @@ export default function Analytics() {
   const totalStrideLength = validGaitData.reduce((sum, entry) => sum + entry.strideLength, 0);
   const avgStrideLength = totalStrideLength / validGaitData.length;
   
-  const variance = validGaitData.reduce((sum, entry) => sum + Math.pow(entry.strideLength - avgStrideLength, 2), 0) / validGaitData.length;
-  const strideVariance = Math.sqrt(variance);
+  const variance = validGaitData.reduce((sum, entry) => 
+    sum + Math.pow(entry.strideLength - avgStrideLength, 2), 0
+  ) / validGaitData.length;
+  const strideVariance = Math.sqrt(variance) * 100; // Convert to cm
 
-  // Use a helper function to format a value, with a fallback for NaN
-  const formatValue = (value: number, fallback: string = 'N/A') => {
-    return isNaN(value) ? fallback : value.toLocaleString();
+  const totalWalkingSpeed = validGaitData.reduce((sum, entry) => sum + entry.walkingSpeed, 0);
+  const avgWalkingSpeed = totalWalkingSpeed / validGaitData.length;
+
+  const totalSteps = validGaitData.reduce((sum, entry) => sum + (entry.steps || 0), 0);
+  
+  const totalFrequency = validGaitData.reduce((sum, entry) => sum + (entry.frequency || 0), 0);
+  const avgFrequency = totalFrequency / validGaitData.length;
+
+  // Helper function to format a value - matches Dashboard formatting
+  const formatValue = (value: any, decimals: number = 2): string => {
+    if (value === null || value === undefined || value === '' || isNaN(value)) {
+      return 'N/A';
+    }
+    if (typeof value === 'number') {
+      return value.toFixed(decimals);
+    }
+    return String(value);
   };
 
   const analyticsMetrics = [
     {
       title: 'Avg Equilibrium',
-      value: formatValue(avgEquilibrium),
-      unit: '%',
-      status: avgEquilibrium > 90 ? 'Excellent' : 'Good',
+      value: formatValue(avgEquilibrium, 4),
+      unit: '',
+      status: avgEquilibrium > 0.5 ? 'Excellent' : 'Good',
       icon: <Target className="h-5 w-5" />,
-      trend: '+12.5%',
       color: 'success' as const
     },
     {
       title: 'Peak Cadence',
-      value: formatValue(peakCadence, 'N/A'),
+      value: formatValue(peakCadence, 2),
       unit: 'steps/min',
       status: 'High',
       icon: <Timer className="h-5 w-5" />,
-      trend: '+8.3%',
       color: 'primary' as const
     },
     {
       title: 'Stride Variance',
-      value: isNaN(strideVariance) ? 'N/A' : `±${strideVariance.toFixed(2)}`,
+      value: `±${formatValue(strideVariance, 2)}`,
       unit: 'cm',
-      status: strideVariance < 3 ? 'Stable' : 'Unstable',
+      status: strideVariance < 3 ? 'Stable' : 'Variable',
       icon: <Footprints className="h-5 w-5" />,
       color: 'warning' as const
     },
     {
       title: 'Data Points',
-      value: validGaitData.length.toLocaleString(),
+      value: validGaitData.length.toString(),
       unit: '',
       status: 'Collected',
       icon: <BarChart3 className="h-5 w-5" />,
@@ -127,13 +153,39 @@ export default function Analytics() {
     }
   ];
 
-  const chartData = validGaitData.slice(-24).sort((a, b) => a.timestamp - b.timestamp).map(d => ({
-    timestamp: new Date(d.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    equilibrium: d.equilibriumScore,
-    cadence: d.cadence,
-    speed: d.walkingSpeed,
-    sway: d.posturalSway
-  }));
+  // Prepare chart data - take last 30 entries and sort by timestamp
+  const chartData = validGaitData
+    .slice(-30)
+    .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0))
+    .map((d, index) => ({
+      timestamp: d.timestamp 
+        ? new Date(d.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        : `${index + 1}`,
+      equilibrium: Number(d.equilibriumScore.toFixed(4)),
+      cadence: Number(d.cadence.toFixed(2)),
+      speed: Number(d.walkingSpeed.toFixed(4)),
+      sway: Number(d.posturalSway.toFixed(2)),
+      strideLength: Number(d.strideLength.toFixed(3)),
+      frequency: Number((d.frequency || 0).toFixed(3)),
+      steps: d.steps || 0,
+    }));
+
+  // Custom tooltip for better data display
+  const CustomTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="bg-card border border-border rounded-lg p-3 shadow-lg">
+          <p className="text-sm font-medium text-foreground mb-1">{label}</p>
+          {payload.map((entry: any, index: number) => (
+            <p key={index} className="text-xs" style={{ color: entry.color }}>
+              {entry.name}: {entry.value}
+            </p>
+          ))}
+        </div>
+      );
+    }
+    return null;
+  };
   
   return (
     <div className="min-h-screen bg-background p-4 sm:p-6">
@@ -147,15 +199,15 @@ export default function Analytics() {
             </p>
           </div>
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
-            <Select defaultValue="7days">
+            <Select defaultValue="all">
               <SelectTrigger className="w-full sm:w-32">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="1day">Last 24h</SelectItem>
+                <SelectItem value="all">All Data</SelectItem>
+                <SelectItem value="1hour">Last Hour</SelectItem>
+                <SelectItem value="24hours">Last 24h</SelectItem>
                 <SelectItem value="7days">Last 7 days</SelectItem>
-                <SelectItem value="30days">Last 30 days</SelectItem>
-                <SelectItem value="custom">Custom Range</SelectItem>
               </SelectContent>
             </Select>
             <div className="flex gap-2">
@@ -182,7 +234,6 @@ export default function Analytics() {
               unit={metric.unit}
               status={metric.status}
               icon={metric.icon}
-              trend={metric.trend}
               color={metric.color}
               delay={index * 100}
             />
@@ -197,17 +248,34 @@ export default function Analytics() {
               <CardTitle className="text-lg font-semibold text-foreground">
                 Equilibrium Data
               </CardTitle>
-              <p className="text-sm text-muted-foreground">Historical equilibrium trends</p>
+              <p className="text-sm text-muted-foreground">Real-time equilibrium trends (Last 30 readings)</p>
             </CardHeader>
             <CardContent>
-              <div style={{ width: '100%', height: 256 }}>
+              <div style={{ width: '100%', height: 280 }}>
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={chartData} margin={{ top: 10, right: 30, left: -20, bottom: 0 }}>
+                  <LineChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
-                    <XAxis dataKey="timestamp" stroke="hsl(var(--muted-foreground))" tick={{ fontSize: 10 }} />
-                    <YAxis stroke="hsl(var(--muted-foreground))" tick={{ fontSize: 10 }} />
-                    <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: 'none', borderRadius: '8px' }} />
-                    <Line type="monotone" dataKey="equilibrium" stroke="hsl(var(--success))" strokeWidth={2} dot={false} />
+                    <XAxis 
+                      dataKey="timestamp" 
+                      stroke="hsl(var(--muted-foreground))" 
+                      tick={{ fontSize: 10 }}
+                      interval="preserveStartEnd"
+                    />
+                    <YAxis 
+                      stroke="hsl(var(--muted-foreground))" 
+                      tick={{ fontSize: 10 }}
+                      domain={['auto', 'auto']}
+                    />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Line 
+                      type="monotone" 
+                      dataKey="equilibrium" 
+                      stroke="hsl(var(--success))" 
+                      strokeWidth={2} 
+                      dot={false}
+                      name="Equilibrium"
+                      animationDuration={300}
+                    />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
@@ -220,17 +288,34 @@ export default function Analytics() {
               <CardTitle className="text-lg font-semibold text-foreground">
                 Cadence Data
               </CardTitle>
-              <p className="text-sm text-muted-foreground">Historical cadence patterns</p>
+              <p className="text-sm text-muted-foreground">Real-time cadence patterns (Last 30 readings)</p>
             </CardHeader>
             <CardContent>
-              <div style={{ width: '100%', height: 256 }}>
+              <div style={{ width: '100%', height: 280 }}>
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={chartData} margin={{ top: 10, right: 30, left: -20, bottom: 0 }}>
+                  <LineChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
-                    <XAxis dataKey="timestamp" stroke="hsl(var(--muted-foreground))" tick={{ fontSize: 10 }} />
-                    <YAxis stroke="hsl(var(--muted-foreground))" tick={{ fontSize: 10 }} />
-                    <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: 'none', borderRadius: '8px' }} />
-                    <Line type="monotone" dataKey="cadence" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} />
+                    <XAxis 
+                      dataKey="timestamp" 
+                      stroke="hsl(var(--muted-foreground))" 
+                      tick={{ fontSize: 10 }}
+                      interval="preserveStartEnd"
+                    />
+                    <YAxis 
+                      stroke="hsl(var(--muted-foreground))" 
+                      tick={{ fontSize: 10 }}
+                      domain={['auto', 'auto']}
+                    />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Line 
+                      type="monotone" 
+                      dataKey="cadence" 
+                      stroke="hsl(var(--primary))" 
+                      strokeWidth={2} 
+                      dot={false}
+                      name="Cadence (steps/min)"
+                      animationDuration={300}
+                    />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
@@ -243,17 +328,34 @@ export default function Analytics() {
               <CardTitle className="text-lg font-semibold text-foreground">
                 Walking Speed
               </CardTitle>
-              <p className="text-sm text-muted-foreground">Speed variations over time</p>
+              <p className="text-sm text-muted-foreground">Real-time speed variations (Last 30 readings)</p>
             </CardHeader>
             <CardContent>
-              <div style={{ width: '100%', height: 256 }}>
+              <div style={{ width: '100%', height: 280 }}>
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={chartData} margin={{ top: 10, right: 30, left: -20, bottom: 0 }}>
+                  <LineChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
-                    <XAxis dataKey="timestamp" stroke="hsl(var(--muted-foreground))" tick={{ fontSize: 10 }} />
-                    <YAxis stroke="hsl(var(--muted-foreground))" tick={{ fontSize: 10 }} />
-                    <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: 'none', borderRadius: '8px' }} />
-                    <Line type="monotone" dataKey="speed" stroke="hsl(var(--warning))" strokeWidth={2} dot={false} />
+                    <XAxis 
+                      dataKey="timestamp" 
+                      stroke="hsl(var(--muted-foreground))" 
+                      tick={{ fontSize: 10 }}
+                      interval="preserveStartEnd"
+                    />
+                    <YAxis 
+                      stroke="hsl(var(--muted-foreground))" 
+                      tick={{ fontSize: 10 }}
+                      domain={['auto', 'auto']}
+                    />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Line 
+                      type="monotone" 
+                      dataKey="speed" 
+                      stroke="hsl(var(--warning))" 
+                      strokeWidth={2} 
+                      dot={false}
+                      name="Speed (m/s)"
+                      animationDuration={300}
+                    />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
@@ -266,17 +368,34 @@ export default function Analytics() {
               <CardTitle className="text-lg font-semibold text-foreground">
                 Postural Sway
               </CardTitle>
-              <p className="text-sm text-muted-foreground">Balance stability metrics</p>
+              <p className="text-sm text-muted-foreground">Real-time balance stability (Last 30 readings)</p>
             </CardHeader>
             <CardContent>
-              <div style={{ width: '100%', height: 256 }}>
+              <div style={{ width: '100%', height: 280 }}>
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={chartData} margin={{ top: 10, right: 30, left: -20, bottom: 0 }}>
+                  <LineChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
-                    <XAxis dataKey="timestamp" stroke="hsl(var(--muted-foreground))" tick={{ fontSize: 10 }} />
-                    <YAxis stroke="hsl(var(--muted-foreground))" tick={{ fontSize: 10 }} />
-                    <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: 'none', borderRadius: '8px' }} />
-                    <Line type="monotone" dataKey="sway" stroke="rgb(147 51 234)" strokeWidth={2} dot={false} />
+                    <XAxis 
+                      dataKey="timestamp" 
+                      stroke="hsl(var(--muted-foreground))" 
+                      tick={{ fontSize: 10 }}
+                      interval="preserveStartEnd"
+                    />
+                    <YAxis 
+                      stroke="hsl(var(--muted-foreground))" 
+                      tick={{ fontSize: 10 }}
+                      domain={['auto', 'auto']}
+                    />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Line 
+                      type="monotone" 
+                      dataKey="sway" 
+                      stroke="rgb(147 51 234)" 
+                      strokeWidth={2} 
+                      dot={false}
+                      name="Sway (mm)"
+                      animationDuration={300}
+                    />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
