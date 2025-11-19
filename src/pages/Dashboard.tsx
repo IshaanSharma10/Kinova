@@ -14,7 +14,9 @@ import {
   Target,
   TrendingUp,
   BarChart3,
-  Footprints
+  Footprints,
+  Weight,
+   Gauge 
 } from 'lucide-react';
 
 import { gsap } from 'gsap';
@@ -110,7 +112,7 @@ export default function Dashboard() {
     cadence: <Timer className="h-5 w-5" />,
     frequency: <Zap className="h-5 w-5" />,
     stepWidth: <Footprints className="h-5 w-5" />,
-    strideLength: <BarChart3 className="h-5 w-5" />,
+    kneeForce: <Weight className="h-5 w-5" />,
     walkingSpeed: <TrendingUp className="h-5 w-5" />,
   };
 
@@ -173,11 +175,11 @@ export default function Dashboard() {
       color: "warning" as const,
     },
     {
-      title: "Stride Length",
-      value: formatValue(getValue(latestGaitEntry, 'strideLength'), 3),
-      unit: "m",
+      title: "Knee Force",
+      value: formatValue(getValue(latestGaitEntry, 'kneeForce'), 3),
+      unit: "N",
       status: "Good",
-      icon: iconMap.strideLength,
+      icon: iconMap.kneeForce,
       color: "success" as const,
     },
     {
