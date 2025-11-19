@@ -12,18 +12,17 @@ export interface SensorData {
 
 // Interface for a single gait data entry, identified by a unique key
 export interface GaitDataEntry {
-  cadence: number;
-  equilibriumScore: number;
-  frequency: number;
-  gaitCyclePhaseMean: number;
-  posturalSway: number;
-  sensors: SensorData[]; // An array of SensorData objects
-  stepWidth: number;
-  steps: number;
-  strideLength: number;
-  timestamp: number;
+  cadence?: number;
+  equilibriumScore?: number;
+  frequency?: number;
+  kneeForce?: number;
+  posturalSway?: number;
+  stepWidth?: number;
+  steps?: number;
+  strideLength?: number;
+  timestamp?: number;
+  walkingSpeed?: number;
   _key?: string;
-  walkingSpeed: number;
 }
 
 // Top-level interface for the entire 'gaitData' node
