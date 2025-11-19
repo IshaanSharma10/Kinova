@@ -302,14 +302,36 @@ export default function Insights(): JSX.Element {
     });
   }
 
-  // Chart data: use locally computed scores for historical trend (ML avg is global)
-  const chartData = latestData.map((d) => ({
-    timestamp: new Date(d.timestamp ?? Date.now()).toLocaleTimeString([], {
-      hour: '2-digit',
-      minute: '2-digit',
-    }),
-    score: clamp(calculateRawCompositeScore(d), 0, 100),
-  }));
+  function smooth(values: number[], window = 5): number[] {
+  const smoothed: number[] = [];
+  for (let i = 0; i < values.length; i++) {
+    const start = Math.max(0, i - Math.floor(window / 2));
+    const end = Math.min(values.length, i + Math.floor(window / 2) + 1);
+    const slice = values.slice(start, end);
+    smoothed.push(slice.reduce((a, b) => a + b, 0) / slice.length);
+  }
+  return smoothed;
+}
+
+  // 1) Compute local raw scores
+let localScores = latestData.map(d => clamp(calculateRawCompositeScore(d), 0, 100));
+
+// 2) Smooth the local scores to remove spikes (fixes steep slopes)
+localScores = smooth(localScores, 5);  // window = 5, adjust if needed
+
+// 3) Align average to ML score
+const localMean = localScores.reduce((a, b) => a + b, 0) / localScores.length;
+const delta = typeof mlGaitScore === "number" ? (mlGaitScore - localMean) : 0;
+
+// 4) Shift smoothed scores so their mean matches ML
+const chartData = localScores.map((score, i) => ({
+  timestamp: new Date(latestData[i].timestamp ?? Date.now()).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  }),
+  score: clamp(score + delta, 0, 100),
+}));
+
 
   return (
     <div className="min-h-screen bg-background p-4 sm:p-6">
