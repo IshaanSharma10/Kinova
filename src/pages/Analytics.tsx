@@ -163,7 +163,7 @@ export default function Analytics() {
         : `${index + 1}`,
       equilibrium: Number(d.equilibriumScore.toFixed(4)),
       cadence: Number(d.cadence.toFixed(2)),
-      speed: Number(d.walkingSpeed.toFixed(4)),
+      kneeForce: Number((d.kneeForce || 0).toFixed(4)),
       sway: Number(d.posturalSway.toFixed(2)),
       strideLength: Number(d.strideLength.toFixed(3)),
       frequency: Number((d.frequency || 0).toFixed(3)),
@@ -322,13 +322,13 @@ export default function Analytics() {
             </CardContent>
           </Card>
 
-          {/* Walking Speed Chart */}
+          {/* Knee Force Chart */}
           <Card className="bg-gradient-warning border-border/50">
             <CardHeader>
               <CardTitle className="text-lg font-semibold text-foreground">
-                Walking Speed
+                Knee Force
               </CardTitle>
-              <p className="text-sm text-muted-foreground">Real-time speed variations (Last 30 readings)</p>
+              <p className="text-sm text-muted-foreground">Real-time knee force variations (Last 30 readings)</p>
             </CardHeader>
             <CardContent>
               <div style={{ width: '100%', height: 280 }}>
@@ -349,11 +349,11 @@ export default function Analytics() {
                     <Tooltip content={<CustomTooltip />} />
                     <Line 
                       type="monotone" 
-                      dataKey="speed" 
+                      dataKey="kneeForce" 
                       stroke="hsl(var(--warning))" 
                       strokeWidth={2} 
                       dot={false}
-                      name="Speed (m/s)"
+                      name="Knee Force (N)"
                       animationDuration={300}
                     />
                   </LineChart>
