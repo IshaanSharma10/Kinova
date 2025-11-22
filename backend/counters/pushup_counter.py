@@ -402,7 +402,7 @@ class FinalBalancedPushUpCounter:
             key = cv2.waitKey(1) & 0xFF
             if key == ord('q'): break
             elif key == ord('r'):
-                print("🔄 Counter reset! Get back into plank position.")
+                print(" Counter reset! Get back into plank position.")
                 self.counter = 0
                 self.good_reps = 0
                 self.bad_reps = 0
@@ -438,6 +438,6 @@ class FinalBalancedPushUpCounter:
         print(f"Total Time: {total_time:.1f}s")
         print("="*70 + "\n")
 
-if __name__ == "__main__":
-    pushup_counter = FinalBalancedPushUpCounter()
-    pushup_counter.run()
+# if __name__ == "__main__":
+#     pushup_counter = FinalBalancedPushUpCounter()
+#     pushup_counter.run()

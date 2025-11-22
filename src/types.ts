@@ -11,6 +11,7 @@ export interface SensorData {
 }
 
 // Interface for a single gait data entry, identified by a unique key
+// Interface for a single gait data entry, identified by a unique key
 export interface GaitDataEntry {
   cadence?: number;
   equilibriumScore?: number;
@@ -22,17 +23,16 @@ export interface GaitDataEntry {
   strideLength?: number;
   timestamp?: number;
   walkingSpeed?: number;
+  sensors?: number[]; // Array of sensor readings [0, 1, 2, 3, 4, 5, 6, 7]
   _key?: string;
 }
 
 // Top-level interface for the entire 'gaitData' node
-// The keys are the unique Firebase-generated IDs, and the values are GaitDataEntry objects
 export interface GaitData {
   [key: string]: GaitDataEntry;
 }
 
 // This is the combined interface for all of the data that would be returned
-// from your database root. It is not used in the previous examples, but it is good practice to have it.
 export interface FirebaseRoot {
   gaitData: GaitData;
 }

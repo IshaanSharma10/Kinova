@@ -565,11 +565,11 @@ class FinalSquatCounter:
         print("=" * 70 + "\n")
 
 # --- Main Execution ---
-if __name__ == "__main__":
-    try:
-        squat_counter = FinalSquatCounter()
-        squat_counter.run()
-    except Exception as e:
-        print(f"❌ Failed to start counter: {e}")
-        print("Make sure you have necessary libraries installed:")
-        print("pip install numpy opencv-python mediapipe")
+# if __name__ == "__main__":
+#     try:
+#         squat_counter = FinalSquatCounter()
+#         squat_counter.run()
+#     except Exception as e:
+#         print(f"❌ Failed to start counter: {e}")
+#         print("Make sure you have necessary libraries installed:")
+#         print("pip install numpy opencv-python mediapipe")

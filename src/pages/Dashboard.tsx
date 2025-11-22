@@ -1,8 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 
 import Gait3DModel from "@/components/Gait3DModel"
-import { Center } from "@react-three/drei";
-
 import { MetricCard } from '@/components/ui/metric-card';
 import { LiveIndicator } from '@/components/ui/live-indicator';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,15 +11,12 @@ import {
   Timer,
   Target,
   TrendingUp,
-  BarChart3,
   Footprints,
   Weight,
-   Gauge 
 } from 'lucide-react';
 
 import { gsap } from 'gsap';
 import { useGaitMetrics } from '@/hooks/useGaitMetrics';
-
 
 export default function Dashboard() {
   const headerRef = useRef<HTMLDivElement>(null);
@@ -58,21 +53,12 @@ export default function Dashboard() {
     }
   }, []);
 
-  // CRITICAL DEBUG LOGGING
+  // Log whenever data changes
   useEffect(() => {
-    console.log('=== DASHBOARD DEBUG ===');
-    console.log('gaitMetricsData:', gaitMetricsData);
-    console.log('loading:', loading);
-    console.log('error:', error);
-    
     if (gaitMetricsData && gaitMetricsData.length > 0) {
-      const latest = gaitMetricsData[0];
-      console.log('Latest entry full object:', latest);
-      console.log('Latest entry JSON:', JSON.stringify(latest, null, 2));
-      console.log('Object.keys:', Object.keys(latest));
-      console.log('Object.values:', Object.values(latest));
+      console.log('Latest gait entry:', gaitMetricsData[0]._key);
     }
-  }, [gaitMetricsData, loading, error]);
+  }, [gaitMetricsData]);
 
   if (loading) {
     return (
@@ -87,9 +73,14 @@ export default function Dashboard() {
   if (error) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <p className="text-xl font-semibold text-destructive">
-          Error loading data: {error.message}
-        </p>
+        <div className="text-center space-y-4">
+          <p className="text-xl font-semibold text-destructive">
+            Error loading data: {error.message}
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Check console for details
+          </p>
+        </div>
       </div>
     );
   }
@@ -116,28 +107,21 @@ export default function Dashboard() {
     walkingSpeed: <TrendingUp className="h-5 w-5" />,
   };
 
-  // Direct access helper
-  const getValue = (obj: any, key: string) => {
-    const value = obj[key];
-    console.log(`getValue(${key}):`, value, 'type:', typeof value);
-    return value;
-  };
-
-  // Format helper
-  const formatValue = (value: any, decimals: number = 2): string => {
-    if (value === null || value === undefined || value === '') {
+  // Format with proper null checking
+  const formatValue = (value: number | undefined, decimals: number = 2): string => {
+    if (value === null || value === undefined) {
       return 'N/A';
     }
-    if (typeof value === 'number') {
+    if (typeof value === 'number' && !isNaN(value)) {
       return value.toFixed(decimals);
     }
-    return String(value);
+    return 'N/A';
   };
 
   const formattedGaitMetrics = [
     {
       title: "Steps",
-      value: formatValue(getValue(latestGaitEntry, 'steps'), 0),
+      value: formatValue(latestGaitEntry.steps, 0),
       unit: "steps",
       status: "LIVE",
       icon: iconMap.stepWidth,
@@ -145,14 +129,14 @@ export default function Dashboard() {
     },
     {
       title: "Equilibrium",
-      value: formatValue(getValue(latestGaitEntry, 'equilibriumScore'), 4),
+      value: formatValue(latestGaitEntry.equilibriumScore, 6),
       status: "Excellent",
       icon: iconMap.equilibrium,
       color: "success" as const,
     },
     {
       title: "Postural Sway",
-      value: formatValue(getValue(latestGaitEntry, 'posturalSway'), 2),
+      value: formatValue(latestGaitEntry.posturalSway, 6),
       unit: "mm",
       status: "Normal",
       icon: iconMap.posturalSway,
@@ -160,7 +144,7 @@ export default function Dashboard() {
     },
     {
       title: "Cadence",
-      value: formatValue(getValue(latestGaitEntry, 'cadence'), 2),
+      value: formatValue(latestGaitEntry.cadence, 5),
       unit: "steps/min",
       status: "Optimal",
       icon: iconMap.cadence,
@@ -168,7 +152,7 @@ export default function Dashboard() {
     },
     {
       title: "Frequency",
-      value: formatValue(getValue(latestGaitEntry, 'frequency'), 3),
+      value: formatValue(latestGaitEntry.frequency, 6),
       unit: "Hz",
       status: "Normal",
       icon: iconMap.frequency,
@@ -176,7 +160,7 @@ export default function Dashboard() {
     },
     {
       title: "Knee Force",
-      value: formatValue(getValue(latestGaitEntry, 'kneeForce'), 3),
+      value: formatValue(latestGaitEntry.kneeForce, 6),
       unit: "N",
       status: "Good",
       icon: iconMap.kneeForce,
@@ -184,7 +168,7 @@ export default function Dashboard() {
     },
     {
       title: "Walking Speed",
-      value: formatValue(getValue(latestGaitEntry, 'walkingSpeed'), 4),
+      value: formatValue(latestGaitEntry.walkingSpeed, 6),
       unit: "m/s",
       status: "Average",
       icon: iconMap.walkingSpeed,
@@ -192,7 +176,7 @@ export default function Dashboard() {
     },
     {
       title: "Step Width",
-      value: formatValue(getValue(latestGaitEntry, 'stepWidth'), 3),
+      value: formatValue(latestGaitEntry.stepWidth, 6),
       unit: "m",
       status: "Balanced",
       icon: iconMap.stepWidth,
@@ -200,30 +184,28 @@ export default function Dashboard() {
     },
   ];
 
-  console.log('formattedGaitMetrics:', formattedGaitMetrics);
-
   const formattedSensorData = [
     {
       label: "Equilibrium",
-      value: formatValue(getValue(latestGaitEntry, 'equilibriumScore'), 4),
+      value: formatValue(latestGaitEntry.equilibriumScore, 6),
       status: "LIVE",
       color: "success" as const,
     },
     {
       label: "Cadence",
-      value: `${formatValue(getValue(latestGaitEntry, 'cadence'), 2)} steps/min`,
+      value: `${formatValue(latestGaitEntry.cadence, 5)} steps/min`,
       status: "LIVE",
       color: "primary" as const,
     },
     {
       label: "Walking Speed",
-      value: `${formatValue(getValue(latestGaitEntry, 'walkingSpeed'), 4)} m/s`,
+      value: `${formatValue(latestGaitEntry.walkingSpeed, 6)} m/s`,
       status: "LIVE",
       color: "warning" as const,
     },
     {
       label: "Postural Sway",
-      value: `${formatValue(getValue(latestGaitEntry, 'posturalSway'), 2)} mm`,
+      value: `${formatValue(latestGaitEntry.posturalSway, 6)} mm`,
       status: "LIVE",
       color: "purple" as const,
     },
