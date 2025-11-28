@@ -1,0 +1,1537 @@
+import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { LiveIndicator } from '@/components/ui/live-indicator';
+import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, Tooltip, Legend, LineChart, Line, XAxis, YAxis, CartesianGrid, Area, AreaChart } from 'recharts';
+import gsap from 'gsap';
+import { Activity, TrendingUp, TrendingDown, Target, Lightbulb, Calendar, CheckCircle2, AlertCircle, Info, Zap, BarChart3, ChevronRight, ArrowUpRight, Scale, Footprints, Gauge, Timer, Loader2, Brain, Download } from 'lucide-react';
+import { useGaitMetrics, GaitDataEntry } from '@/hooks/useGaitMetrics';
+import { useMLInsightsFromFirebase } from '@/hooks/useMLInsightsFromFirebase';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+
+interface MetricData {
+  parameter: string;
+  actual: number;
+  ideal: number;
+  unit: string;
+  category: string;
+  description: string;
+  relatedTo: string;
+  icon: React.ElementType;
+}
+
+// Ideal values for biomechanical parameters (based on research standards)
+const IDEAL_VALUES = {
+  equilibriumScore: 0.95,      // Near perfect balance (0-1 scale)
+  posturalSway: 15.0,          // mm - lower is better
+  cadence: 120,                // steps/min - optimal walking cadence
+  frequency: 2.0,              // Hz - optimal step frequency
+  stepWidth: 0.10,             // m - optimal lateral step distance
+  kneeForce: 800,              // N - ideal peak knee force
+  walkingSpeed: 1.4,           // m/s - optimal walking velocity
+  strideLength: 1.5,           // m - optimal stride length
+  steps: 10000,                // daily step goal
+};
+
+const Comparison = () => {
+  const headerRef = useRef<HTMLDivElement>(null);
+  const [activeTab, setActiveTab] = useState('overview');
+  const [hoveredMetric, setHoveredMetric] = useState<string | null>(null);
+  
+  // Fetch real-time data from Firebase
+  const { data: gaitData, loading, error } = useGaitMetrics();
+  
+  // Fetch ML insights (gait score) from Firebase
+  const { data: mlData, loading: mlLoading } = useMLInsightsFromFirebase('/gaitData/average_scores');
+
+  useEffect(() => {
+    document.title = 'Biomechanical Comparison | SensorViz';
+
+    // Only run animations after data is loaded
+    if (!loading && gaitData) {
+      const ctx = gsap.context(() => {
+        gsap.from(headerRef.current, {
+          y: -30,
+          opacity: 0,
+          duration: 0.6,
+          ease: 'power3.out'
+        });
+
+        gsap.from('.hero-stat', {
+          scale: 0.8,
+          opacity: 0,
+          duration: 0.5,
+          stagger: 0.1,
+          delay: 0.2,
+          ease: 'back.out(1.5)'
+        });
+
+        gsap.from('.main-card', {
+          y: 40,
+          opacity: 0,
+          duration: 0.7,
+          stagger: 0.15,
+          delay: 0.4,
+          ease: 'power3.out'
+        });
+
+        gsap.from('.metric-item', {
+          x: -20,
+          opacity: 0,
+          duration: 0.4,
+          stagger: 0.05,
+          delay: 0.6,
+          ease: 'power2.out'
+        });
+
+        gsap.from('.insight-card', {
+          y: 20,
+          opacity: 0,
+          duration: 0.5,
+          stagger: 0.08,
+          delay: 0.8,
+          ease: 'power2.out'
+        });
+      });
+
+      return () => ctx.revert();
+    }
+  }, [loading, gaitData]);
+
+  // Format value with proper null checking
+  const formatValue = (value: number | undefined, decimals: number = 2): number => {
+    if (value === null || value === undefined || isNaN(value)) return 0;
+    return parseFloat(value.toFixed(decimals));
+  };
+
+  // Get latest entry from Firebase data
+  const latestEntry = useMemo(() => {
+    if (!gaitData || gaitData.length === 0) return null;
+    return gaitData[0];
+  }, [gaitData]);
+
+  // Transform Firebase data to metrics format
+  const metricsData: MetricData[] = useMemo(() => {
+    if (!latestEntry) return [];
+
+    return [
+      {
+        parameter: 'Equilibrium',
+        actual: formatValue(latestEntry.equilibriumScore, 4),
+        ideal: IDEAL_VALUES.equilibriumScore,
+        unit: 'score',
+        category: 'Balance',
+        description: 'Balance & Stability Score',
+        relatedTo: 'Postural Control',
+        icon: Target
+      },
+      {
+        parameter: 'Postural Sway',
+        actual: formatValue(latestEntry.posturalSway, 2),
+        ideal: IDEAL_VALUES.posturalSway,
+        unit: 'mm',
+        category: 'Balance',
+        description: 'Body Oscillation',
+        relatedTo: 'Core Stability',
+        icon: Activity
+      },
+      {
+        parameter: 'Cadence',
+        actual: formatValue(latestEntry.cadence, 1),
+        ideal: IDEAL_VALUES.cadence,
+        unit: 'steps/min',
+        category: 'Gait Parameters',
+        description: 'Step Rate',
+        relatedTo: 'Walking Efficiency',
+        icon: Gauge
+      },
+      {
+        parameter: 'Frequency',
+        actual: formatValue(latestEntry.frequency, 3),
+        ideal: IDEAL_VALUES.frequency,
+        unit: 'Hz',
+        category: 'Gait Parameters',
+        description: 'Step Frequency',
+        relatedTo: 'Gait Rhythm',
+        icon: Timer
+      },
+      {
+        parameter: 'Step Width',
+        actual: formatValue(latestEntry.stepWidth, 4),
+        ideal: IDEAL_VALUES.stepWidth,
+        unit: 'm',
+        category: 'Gait Parameters',
+        description: 'Lateral Step Distance',
+        relatedTo: 'Lateral Stability',
+        icon: Footprints
+      },
+      {
+        parameter: 'Knee Force',
+        actual: formatValue(latestEntry.kneeForce, 1),
+        ideal: IDEAL_VALUES.kneeForce,
+        unit: 'N',
+        category: 'Biomechanics',
+        description: 'Peak Knee Joint Force',
+        relatedTo: 'Joint Health',
+        icon: Zap
+      },
+      {
+        parameter: 'Walking Speed',
+        actual: formatValue(latestEntry.walkingSpeed, 3),
+        ideal: IDEAL_VALUES.walkingSpeed,
+        unit: 'm/s',
+        category: 'Gait Parameters',
+        description: 'Average Walking Velocity',
+        relatedTo: 'Overall Mobility',
+        icon: TrendingUp
+      },
+      {
+        parameter: 'Stride Length',
+        actual: formatValue(latestEntry.strideLength, 3),
+        ideal: IDEAL_VALUES.strideLength,
+        unit: 'm',
+        category: 'Gait Parameters',
+        description: 'Distance Per Stride',
+        relatedTo: 'Leg Length',
+        icon: Footprints
+      }
+    ];
+  }, [latestEntry]);
+
+  // Transform data for radar chart
+  const radarData = useMemo(() => {
+    return metricsData.map(metric => ({
+      subject: metric.parameter,
+      actual: metric.ideal > 0 ? (metric.actual / metric.ideal) * 100 : 0,
+      ideal: 100,
+      fullMark: 150
+    }));
+  }, [metricsData]);
+
+  // Historical trend data from last entries
+  const historicalData = useMemo(() => {
+    if (!gaitData || gaitData.length === 0) return [];
+    
+    // Reverse to show oldest first, take up to 10 entries
+    const entries = [...gaitData].reverse().slice(-10);
+    
+    return entries.map((entry, index) => ({
+      index: index + 1,
+      label: `T${index + 1}`,
+      equilibrium: formatValue(entry.equilibriumScore, 4),
+      posturalSway: formatValue(entry.posturalSway, 2),
+      cadence: formatValue(entry.cadence, 1),
+      speed: formatValue(entry.walkingSpeed, 3),
+      kneeForce: formatValue(entry.kneeForce, 1),
+      frequency: formatValue(entry.frequency, 3),
+    }));
+  }, [gaitData]);
+
+  // Correlation data based on actual metrics
+  const correlationData = useMemo(() => {
+    if (!metricsData.length) return [];
+    
+    const equilibriumMetric = metricsData.find(m => m.parameter === 'Equilibrium');
+    const swayMetric = metricsData.find(m => m.parameter === 'Postural Sway');
+    const cadenceMetric = metricsData.find(m => m.parameter === 'Cadence');
+    const speedMetric = metricsData.find(m => m.parameter === 'Walking Speed');
+    
+    return [
+      { 
+        pair: 'Equilibrium ↔ Sway', 
+        strength: equilibriumMetric && swayMetric ? Math.min(95, Math.round((equilibriumMetric.actual / equilibriumMetric.ideal) * 100)) : 0,
+        color: 'hsl(var(--primary))' 
+      },
+      { 
+        pair: 'Cadence ↔ Speed', 
+        strength: cadenceMetric && speedMetric ? Math.min(95, Math.round((cadenceMetric.actual / cadenceMetric.ideal) * 100)) : 0,
+        color: 'hsl(180 100% 60%)' 
+      },
+      { 
+        pair: 'Speed ↔ Stride', 
+        strength: speedMetric ? Math.min(95, Math.round((speedMetric.actual / speedMetric.ideal) * 100)) : 0,
+        color: 'hsl(38 92% 50%)' 
+      },
+      { 
+        pair: 'Balance ↔ Force', 
+        strength: equilibriumMetric ? Math.min(95, Math.round((equilibriumMetric.actual / equilibriumMetric.ideal) * 85)) : 0,
+        color: 'hsl(142 76% 36%)' 
+      },
+    ];
+  }, [metricsData]);
+
+  // Generate dynamic recommendations based on actual data
+  const recommendations = useMemo(() => {
+    if (!metricsData.length) return [];
+    
+    const recs = [];
+    
+    const equilibrium = metricsData.find(m => m.parameter === 'Equilibrium');
+    const cadence = metricsData.find(m => m.parameter === 'Cadence');
+    const kneeForce = metricsData.find(m => m.parameter === 'Knee Force');
+    const speed = metricsData.find(m => m.parameter === 'Walking Speed');
+    const sway = metricsData.find(m => m.parameter === 'Postural Sway');
+    
+    if (equilibrium && equilibrium.actual < equilibrium.ideal * 0.9) {
+      recs.push({
+        title: 'Improve Balance Score',
+        description: `Your equilibrium score is ${((equilibrium.actual / equilibrium.ideal) * 100).toFixed(0)}% of ideal. Focus on core strengthening exercises.`,
+        priority: 'high',
+        icon: Target,
+        action: 'View Balance Exercises',
+        impact: `+${Math.round((equilibrium.ideal - equilibrium.actual) * 100)}%`,
+        impactLabel: 'Balance'
+      });
+    }
+    
+    if (cadence && cadence.actual < cadence.ideal * 0.9) {
+      recs.push({
+        title: 'Increase Cadence',
+        description: `Target ${cadence.ideal} steps/min for optimal gait efficiency. Current: ${cadence.actual.toFixed(0)} steps/min.`,
+        priority: 'medium',
+        icon: Gauge,
+        action: 'Start Training',
+        impact: `+${Math.round(cadence.ideal - cadence.actual)}`,
+        impactLabel: 'Steps/min'
+      });
+    }
+    
+    if (kneeForce && kneeForce.actual > kneeForce.ideal * 1.1) {
+      recs.push({
+        title: 'Reduce Knee Loading',
+        description: `Knee force is ${((kneeForce.actual / kneeForce.ideal - 1) * 100).toFixed(0)}% above ideal. Consider gait modifications.`,
+        priority: 'high',
+        icon: AlertCircle,
+        action: 'View Exercise Plan',
+        impact: `-${Math.round(kneeForce.actual - kneeForce.ideal)}N`,
+        impactLabel: 'Force'
+      });
+    }
+    
+    if (speed && speed.actual < speed.ideal * 0.9) {
+      recs.push({
+        title: 'Improve Walking Speed',
+        description: `Increase stride length to boost speed from ${speed.actual.toFixed(2)} to ${speed.ideal.toFixed(2)} m/s.`,
+        priority: 'medium',
+        icon: Zap,
+        action: 'View Technique Tips',
+        impact: `+${((speed.ideal - speed.actual) * 100 / speed.ideal).toFixed(0)}%`,
+        impactLabel: 'Speed'
+      });
+    }
+
+    if (sway && sway.actual > sway.ideal * 1.2) {
+      recs.push({
+        title: 'Reduce Postural Sway',
+        description: `Postural sway is elevated at ${sway.actual.toFixed(1)}mm. Work on stability exercises.`,
+        priority: 'high',
+        icon: Activity,
+        action: 'View Stability Program',
+        impact: `-${(sway.actual - sway.ideal).toFixed(1)}mm`,
+        impactLabel: 'Sway'
+      });
+    }
+    
+    // Add a positive recommendation if most metrics are good
+    const goodMetrics = metricsData.filter(m => {
+      const ratio = m.actual / m.ideal;
+      return ratio >= 0.9 && ratio <= 1.1;
+    });
+    
+    if (goodMetrics.length >= 5) {
+      recs.push({
+        title: 'Maintain Current Performance',
+        description: `${goodMetrics.length} of ${metricsData.length} parameters are in optimal range. Keep up the great work!`,
+        priority: 'low',
+        icon: CheckCircle2,
+        action: 'Track Progress',
+        impact: `${goodMetrics.length}/${metricsData.length}`,
+        impactLabel: 'Optimal'
+      });
+    }
+    
+    return recs;
+  }, [metricsData]);
+
+  const getComparisonStatus = (actual: number, ideal: number) => {
+    // Handle edge cases
+    if (ideal === 0 || actual === undefined || ideal === undefined) {
+      return { status: 'unknown' as const, icon: AlertCircle, color: 'text-muted-foreground', bgColor: 'bg-muted/20', borderColor: 'border-muted/30' };
+    }
+    const diff = ((actual - ideal) / ideal) * 100;
+    if (Math.abs(diff) < 15) {
+      return { status: 'optimal' as const, icon: CheckCircle2, color: 'text-emerald-400', bgColor: 'bg-emerald-500/20', borderColor: 'border-emerald-500/30' };
+    }
+    if (diff > 0) {
+      return { status: 'above' as const, icon: TrendingUp, color: 'text-amber-400', bgColor: 'bg-amber-500/20', borderColor: 'border-amber-500/30' };
+    }
+    return { status: 'below' as const, icon: TrendingDown, color: 'text-sky-400', bgColor: 'bg-sky-500/20', borderColor: 'border-sky-500/30' };
+  };
+
+  const getDeviationPercent = (actual: number, ideal: number) => {
+    if (ideal === 0) return '0.0';
+    return ((actual - ideal) / ideal * 100).toFixed(1);
+  };
+
+  const getCategoryStyle = (category: string) => {
+    switch (category) {
+      case 'Balance': return 'bg-primary/10 text-primary border-primary/20';
+      case 'Anthropometric': return 'bg-violet-500/10 text-violet-400 border-violet-500/20';
+      case 'Gait Parameters': return 'bg-sky-500/10 text-sky-400 border-sky-500/20';
+      case 'Biomechanics': return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+      default: return 'bg-muted text-muted-foreground';
+    }
+  };
+
+  // Get ML gait score and classification
+  const mlGaitScore = useMemo(() => {
+    return typeof mlData?.avgGaitScoreLast20 === 'number' ? mlData.avgGaitScoreLast20 : null;
+  }, [mlData]);
+
+  const mlClassification = useMemo(() => {
+    return mlData?.avgClassificationLast20 ?? null;
+  }, [mlData]);
+
+  // Helper to get score color
+  const getScoreColor = (score: number) => {
+    if (score >= 70) return { text: 'text-emerald-400', bg: 'bg-emerald-500/20', border: 'border-emerald-500/30', ring: 'hsl(142 76% 36%)' };
+    if (score >= 40) return { text: 'text-amber-400', bg: 'bg-amber-500/20', border: 'border-amber-500/30', ring: 'hsl(38 92% 50%)' };
+    return { text: 'text-red-400', bg: 'bg-red-500/20', border: 'border-red-500/30', ring: 'hsl(0 84% 60%)' };
+  };
+
+  // Get score label
+  const getScoreLabel = (score: number): string => {
+    if (score >= 85) return 'Excellent';
+    if (score >= 70) return 'Good';
+    if (score >= 40) return 'Moderate';
+    return 'Needs Work';
+  };
+
+  // Calculate summary stats
+  const { optimalCount, aboveCount, belowCount, overallScore } = useMemo(() => {
+    if (!metricsData.length) return { optimalCount: 0, aboveCount: 0, belowCount: 0, overallScore: 0 };
+    
+    const optimal = metricsData.filter(m => getComparisonStatus(m.actual, m.ideal).status === 'optimal').length;
+    const above = metricsData.filter(m => getComparisonStatus(m.actual, m.ideal).status === 'above').length;
+    const below = metricsData.filter(m => getComparisonStatus(m.actual, m.ideal).status === 'below').length;
+    
+    // Use ML gait score if available, otherwise calculate from metrics
+    if (mlGaitScore !== null) {
+      return { 
+        optimalCount: optimal, 
+        aboveCount: above, 
+        belowCount: below, 
+        overallScore: Math.round(Math.max(0, Math.min(100, mlGaitScore)))
+      };
+    }
+    
+    // Fallback: Calculate overall score based on how close each metric is to ideal
+    const totalScore = metricsData.reduce((acc, m) => {
+      if (m.ideal === 0) return acc;
+      const ratio = Math.min(m.actual / m.ideal, m.ideal / m.actual);
+      return acc + ratio;
+    }, 0);
+    
+    return { 
+      optimalCount: optimal, 
+      aboveCount: above, 
+      belowCount: below, 
+      overallScore: Math.round((totalScore / metricsData.length) * 100)
+    };
+  }, [metricsData, mlGaitScore]);
+
+  // PDF Report Generation
+  const generatePDFReport = useCallback(() => {
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 20;
+    let yPosition = margin;
+
+    // Colors
+    const primaryColor: [number, number, number] = [0, 200, 200]; // Cyan
+    const darkColor: [number, number, number] = [30, 41, 59];
+    const successColor: [number, number, number] = [34, 197, 94];
+    const warningColor: [number, number, number] = [251, 191, 36];
+    const dangerColor: [number, number, number] = [239, 68, 68];
+
+    // Helper function to add new page if needed
+    const checkPageBreak = (requiredSpace: number) => {
+      if (yPosition + requiredSpace > pageHeight - margin) {
+        doc.addPage();
+        yPosition = margin;
+        return true;
+      }
+      return false;
+    };
+
+    // ============ HEADER ============
+    // Background header bar
+    doc.setFillColor(...primaryColor);
+    doc.rect(0, 0, pageWidth, 45, 'F');
+
+    // Kinova Logo/Title
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(28);
+    doc.setFont('helvetica', 'bold');
+    doc.text('KINOVA', margin, 28);
+
+    // Subtitle
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Biomechanical Analysis Report', margin, 38);
+
+    // Report date
+    const reportDate = new Date().toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+    doc.setFontSize(10);
+    doc.text(reportDate, pageWidth - margin - doc.getTextWidth(reportDate), 38);
+
+    yPosition = 60;
+
+    // ============ OVERALL SCORE SECTION ============
+    doc.setTextColor(...darkColor);
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Overall Gait Score', margin, yPosition);
+    yPosition += 10;
+
+    // Score box
+    const scoreBoxWidth = 60;
+    const scoreBoxHeight = 35;
+    const scoreColor = overallScore >= 70 ? successColor : overallScore >= 40 ? warningColor : dangerColor;
+    
+    doc.setFillColor(...scoreColor);
+    doc.roundedRect(margin, yPosition, scoreBoxWidth, scoreBoxHeight, 5, 5, 'F');
+    
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(24);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`${overallScore}%`, margin + scoreBoxWidth / 2, yPosition + 22, { align: 'center' });
+    
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    const scoreLabel = mlClassification || getScoreLabel(overallScore);
+    doc.text(scoreLabel, margin + scoreBoxWidth / 2, yPosition + 30, { align: 'center' });
+
+    // Score summary text
+    doc.setTextColor(...darkColor);
+    doc.setFontSize(11);
+    doc.text(`Classification: ${scoreLabel}`, margin + scoreBoxWidth + 15, yPosition + 12);
+    doc.text(`Optimal Parameters: ${optimalCount} of ${metricsData.length}`, margin + scoreBoxWidth + 15, yPosition + 22);
+    doc.text(`Data Source: ${mlGaitScore !== null ? 'ML Model Analysis' : 'Local Calculation'}`, margin + scoreBoxWidth + 15, yPosition + 32);
+
+    yPosition += scoreBoxHeight + 20;
+
+    // ============ METRICS TABLE ============
+    doc.setTextColor(...darkColor);
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Biomechanical Metrics Comparison', margin, yPosition);
+    yPosition += 8;
+
+    // Prepare table data
+    const tableData = metricsData.map(metric => {
+      const deviation = metric.ideal !== 0 ? ((metric.actual - metric.ideal) / metric.ideal * 100).toFixed(1) : '0.0';
+      const status = getComparisonStatus(metric.actual, metric.ideal).status;
+      const statusText = status === 'optimal' ? '✓ Optimal' : status === 'above' ? '↑ Above' : '↓ Below';
+      return [
+        metric.parameter,
+        metric.category,
+        `${metric.actual} ${metric.unit}`,
+        `${metric.ideal} ${metric.unit}`,
+        `${parseFloat(deviation) > 0 ? '+' : ''}${deviation}%`,
+        statusText
+      ];
+    });
+
+    autoTable(doc, {
+      startY: yPosition,
+      head: [['Parameter', 'Category', 'Actual', 'Ideal', 'Deviation', 'Status']],
+      body: tableData,
+      theme: 'striped',
+      headStyles: {
+        fillColor: primaryColor,
+        textColor: [255, 255, 255],
+        fontStyle: 'bold',
+        fontSize: 9
+      },
+      bodyStyles: {
+        fontSize: 9,
+        textColor: darkColor
+      },
+      alternateRowStyles: {
+        fillColor: [245, 247, 250]
+      },
+      columnStyles: {
+        0: { fontStyle: 'bold', cellWidth: 30 },
+        1: { cellWidth: 30 },
+        2: { halign: 'right', cellWidth: 28 },
+        3: { halign: 'right', cellWidth: 28 },
+        4: { halign: 'right', cellWidth: 22 },
+        5: { halign: 'center', cellWidth: 25 }
+      },
+      margin: { left: margin, right: margin },
+      didParseCell: (data) => {
+        // Color code the status column
+        if (data.column.index === 5 && data.section === 'body') {
+          const status = data.cell.raw as string;
+          if (status.includes('Optimal')) {
+            data.cell.styles.textColor = successColor;
+          } else if (status.includes('Above')) {
+            data.cell.styles.textColor = warningColor;
+          } else if (status.includes('Below')) {
+            data.cell.styles.textColor = [59, 130, 246]; // Blue
+          }
+        }
+      }
+    });
+
+    yPosition = (doc as any).lastAutoTable.finalY + 15;
+
+    // ============ ISSUES IDENTIFIED ============
+    checkPageBreak(60);
+    
+    doc.setTextColor(...darkColor);
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Issues Identified', margin, yPosition);
+    yPosition += 10;
+
+    const issues = metricsData.filter(m => {
+      const status = getComparisonStatus(m.actual, m.ideal).status;
+      return status !== 'optimal';
+    });
+
+    if (issues.length === 0) {
+      doc.setFillColor(...successColor);
+      doc.roundedRect(margin, yPosition, pageWidth - 2 * margin, 20, 3, 3, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(11);
+      doc.text('✓ All parameters are within optimal range!', margin + 10, yPosition + 13);
+      yPosition += 30;
+    } else {
+      issues.forEach((metric, index) => {
+        checkPageBreak(25);
+        const status = getComparisonStatus(metric.actual, metric.ideal);
+        const deviation = ((metric.actual - metric.ideal) / metric.ideal * 100).toFixed(1);
+        const issueColor = status.status === 'above' ? warningColor : [59, 130, 246] as [number, number, number];
+        
+        doc.setFillColor(issueColor[0], issueColor[1], issueColor[2]);
+        doc.circle(margin + 3, yPosition + 5, 2, 'F');
+        
+        doc.setTextColor(...darkColor);
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`${metric.parameter}`, margin + 10, yPosition + 7);
+        
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(10);
+        const issueText = status.status === 'above' 
+          ? `Currently ${Math.abs(parseFloat(deviation))}% above ideal (${metric.actual} vs ${metric.ideal} ${metric.unit})`
+          : `Currently ${Math.abs(parseFloat(deviation))}% below ideal (${metric.actual} vs ${metric.ideal} ${metric.unit})`;
+        doc.text(issueText, margin + 10, yPosition + 15);
+        
+        yPosition += 22;
+      });
+    }
+
+    yPosition += 10;
+
+    // ============ RECOMMENDATIONS ============
+    checkPageBreak(80);
+    
+    doc.setTextColor(...darkColor);
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Personalized Recommendations', margin, yPosition);
+    yPosition += 10;
+
+    if (recommendations.length === 0) {
+      doc.setFillColor(...successColor);
+      doc.roundedRect(margin, yPosition, pageWidth - 2 * margin, 20, 3, 3, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(11);
+      doc.text('✓ Great job! All metrics are optimal. Keep up the good work!', margin + 10, yPosition + 13);
+      yPosition += 30;
+    } else {
+      recommendations.forEach((rec, index) => {
+        checkPageBreak(35);
+        
+        const priorityColor = rec.priority === 'high' ? dangerColor : rec.priority === 'medium' ? warningColor : successColor;
+        
+        // Priority indicator
+        doc.setFillColor(...priorityColor);
+        doc.roundedRect(margin, yPosition, 4, 28, 1, 1, 'F');
+        
+        // Recommendation box
+        doc.setFillColor(250, 250, 250);
+        doc.roundedRect(margin + 6, yPosition, pageWidth - 2 * margin - 6, 28, 3, 3, 'F');
+        
+        // Title
+        doc.setTextColor(...darkColor);
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'bold');
+        doc.text(rec.title, margin + 12, yPosition + 10);
+        
+        // Priority badge
+        doc.setFontSize(8);
+        doc.setTextColor(...priorityColor);
+        const priorityText = `[${rec.priority.toUpperCase()}]`;
+        doc.text(priorityText, pageWidth - margin - doc.getTextWidth(priorityText) - 5, yPosition + 10);
+        
+        // Description
+        doc.setTextColor(100, 100, 100);
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'normal');
+        const descLines = doc.splitTextToSize(rec.description, pageWidth - 2 * margin - 25);
+        doc.text(descLines[0], margin + 12, yPosition + 20);
+        
+        // Impact
+        doc.setTextColor(...primaryColor);
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`Impact: ${rec.impact} ${rec.impactLabel}`, margin + 12, yPosition + 26);
+        
+        yPosition += 35;
+      });
+    }
+
+    // ============ FOOTER ============
+    const totalPages = (doc as any).internal.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+      doc.setPage(i);
+      
+      // Footer line
+      doc.setDrawColor(...primaryColor);
+      doc.setLineWidth(0.5);
+      doc.line(margin, pageHeight - 15, pageWidth - margin, pageHeight - 15);
+      
+      // Footer text
+      doc.setTextColor(150, 150, 150);
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      doc.text('Generated by Kinova - Biomechanical Analysis Platform', margin, pageHeight - 8);
+      doc.text(`Page ${i} of ${totalPages}`, pageWidth - margin - 20, pageHeight - 8);
+    }
+
+    // Save the PDF
+    const fileName = `Kinova_Gait_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+    doc.save(fileName);
+  }, [metricsData, overallScore, optimalCount, mlClassification, mlGaitScore, recommendations, getComparisonStatus, getScoreLabel]);
+
+  // Loading state
+  if (loading || mlLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <div className="relative">
+            <Loader2 className="w-12 h-12 text-primary animate-spin mx-auto" />
+            <Brain className="w-5 h-5 text-primary/50 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+          </div>
+          <p className="text-xl font-semibold text-foreground animate-pulse">
+            Loading biomechanical data...
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Fetching real-time sensor data & ML insights from Firebase
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center space-y-4 max-w-md mx-auto p-6">
+          <div className="p-4 rounded-full bg-destructive/10 w-fit mx-auto">
+            <AlertCircle className="w-12 h-12 text-destructive" />
+          </div>
+          <p className="text-xl font-semibold text-destructive">
+            Error loading data
+          </p>
+          <p className="text-sm text-muted-foreground">
+            {error.message}
+          </p>
+          <Button 
+            onClick={() => window.location.reload()} 
+            variant="outline"
+            className="mt-4"
+          >
+            Try Again
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // No data state
+  if (!gaitData || gaitData.length === 0) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center space-y-4 max-w-md mx-auto p-6">
+          <div className="p-4 rounded-full bg-muted w-fit mx-auto">
+            <Activity className="w-12 h-12 text-muted-foreground" />
+          </div>
+          <p className="text-xl font-semibold text-foreground">
+            No gait data available
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Waiting for sensor data to arrive...
+          </p>
+          <LiveIndicator size="lg" className="justify-center" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-background">
+      {/* Animated Background */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden">
+        <div className="absolute top-0 left-1/4 w-96 h-96 bg-primary/5 rounded-full blur-3xl" />
+        <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-violet-500/5 rounded-full blur-3xl" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-gradient-radial from-primary/3 to-transparent rounded-full" />
+      </div>
+
+      <div className="relative container mx-auto px-4 py-6 max-w-7xl space-y-6">
+        {/* Hero Header */}
+        <div ref={headerRef} className="space-y-6">
+          {/* Title Section */}
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="relative">
+                <div className="absolute inset-0 bg-primary/30 rounded-xl blur-lg animate-pulse" />
+                <div className="relative p-3 rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/20">
+                  <BarChart3 className="w-7 h-7 text-primary" />
+                </div>
+              </div>
+              <div>
+                <h1 className="text-3xl md:text-4xl font-bold text-foreground tracking-tight">
+                  Biomechanical <span className="text-primary">Comparison</span>
+                </h1>
+                <p className="text-muted-foreground mt-1">
+                  Real-time metrics vs ideal values for optimal performance
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-3">
+              <LiveIndicator size="lg" />
+              <Button variant="outline" className="border-border/50 hover:border-primary/50 hover:bg-primary/5">
+                <Calendar className="w-4 h-4 mr-2" />
+                Last {historicalData.length} Entries
+              </Button>
+              <Button 
+                onClick={generatePDFReport}
+                className="bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg shadow-primary/20"
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Generate Report
+              </Button>
+            </div>
+          </div>
+
+          {/* Quick Stats */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {/* ML Gait Score Card */}
+            <div className={`hero-stat group relative overflow-hidden rounded-xl border ${getScoreColor(overallScore).border} bg-card/50 backdrop-blur-sm p-4 hover:border-primary/50 transition-all duration-300`}>
+              <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+              <div className="relative">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                    <Brain className="w-3 h-3" />
+                    {mlGaitScore !== null ? 'ML Gait Score' : 'Gait Score'}
+                  </span>
+                  <div className={`p-1.5 rounded-lg ${getScoreColor(overallScore).bg}`}>
+                    <Target className={`w-4 h-4 ${getScoreColor(overallScore).text}`} />
+                  </div>
+                </div>
+                
+                {/* Circular Score Indicator */}
+                <div className="flex items-center gap-3">
+                  <div className="relative w-14 h-14">
+                    <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
+                      <path
+                        d="m18,2.0845 a 15.9155,15.9155 0 0,1 0,31.831 a 15.9155,15.9155 0 0,1 0,-31.831"
+                        fill="none"
+                        stroke="hsl(var(--muted))"
+                        strokeWidth="3"
+                      />
+                      <path
+                        d="m18,2.0845 a 15.9155,15.9155 0 0,1 0,31.831 a 15.9155,15.9155 0 0,1 0,-31.831"
+                        fill="none"
+                        stroke={getScoreColor(overallScore).ring}
+                        strokeWidth="3"
+                        strokeDasharray={`${overallScore}, 100`}
+                        strokeLinecap="round"
+                        className="drop-shadow-sm transition-all duration-1000"
+                      />
+                    </svg>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <span className={`text-lg font-bold ${getScoreColor(overallScore).text}`}>
+                        {overallScore}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex-1">
+                    <Badge className={`${getScoreColor(overallScore).bg} ${getScoreColor(overallScore).text} border-0 text-[10px]`}>
+                      {mlClassification || getScoreLabel(overallScore)}
+                    </Badge>
+                    {mlGaitScore !== null && (
+                      <p className="text-[10px] text-muted-foreground mt-1">ML Powered</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="hero-stat group relative overflow-hidden rounded-xl border border-emerald-500/20 bg-emerald-500/5 backdrop-blur-sm p-4 hover:border-emerald-500/40 transition-all duration-300">
+              <div className="relative">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-medium text-emerald-400/70 uppercase tracking-wider">Optimal</span>
+                  <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-3xl font-bold text-emerald-400">{optimalCount}</span>
+                  <span className="text-sm text-emerald-400/60">parameters</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="hero-stat group relative overflow-hidden rounded-xl border border-amber-500/20 bg-amber-500/5 backdrop-blur-sm p-4 hover:border-amber-500/40 transition-all duration-300">
+              <div className="relative">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-medium text-amber-400/70 uppercase tracking-wider">Above Ideal</span>
+                  <TrendingUp className="w-5 h-5 text-amber-400" />
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-3xl font-bold text-amber-400">{aboveCount}</span>
+                  <span className="text-sm text-amber-400/60">parameters</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="hero-stat group relative overflow-hidden rounded-xl border border-sky-500/20 bg-sky-500/5 backdrop-blur-sm p-4 hover:border-sky-500/40 transition-all duration-300">
+              <div className="relative">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-medium text-sky-400/70 uppercase tracking-wider">Below Ideal</span>
+                  <TrendingDown className="w-5 h-5 text-sky-400" />
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-3xl font-bold text-sky-400">{belowCount}</span>
+                  <span className="text-sm text-sky-400/60">parameters</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Main Content with Tabs */}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+          <TabsList className="w-full sm:w-auto bg-card border border-border p-1.5 rounded-xl shadow-lg">
+            <TabsTrigger 
+              value="overview" 
+              className="px-4 py-2 rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md transition-all"
+            >
+              <BarChart3 className="w-4 h-4 mr-2" />
+              Overview
+            </TabsTrigger>
+            <TabsTrigger 
+              value="metrics" 
+              className="px-4 py-2 rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md transition-all"
+            >
+              <Activity className="w-4 h-4 mr-2" />
+              All Metrics
+            </TabsTrigger>
+            <TabsTrigger 
+              value="trends" 
+              className="px-4 py-2 rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md transition-all"
+            >
+              <TrendingUp className="w-4 h-4 mr-2" />
+              Trends
+            </TabsTrigger>
+            <TabsTrigger 
+              value="insights" 
+              className="px-4 py-2 rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md transition-all"
+            >
+              <Lightbulb className="w-4 h-4 mr-2" />
+              Insights
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Overview Tab */}
+          <TabsContent value="overview" className="space-y-6 mt-0">
+            <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+              {/* Radar Chart */}
+              <Card className="main-card lg:col-span-3 border-border/50 bg-card/80 backdrop-blur-sm overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-violet-500/5" />
+                <CardHeader className="relative">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-xl flex items-center gap-2">
+                        <div className="p-1.5 rounded-lg bg-primary/10">
+                          <Target className="w-4 h-4 text-primary" />
+                        </div>
+                        Performance Radar
+                      </CardTitle>
+                      <CardDescription>
+                        Normalized comparison (ideal = 100%)
+                      </CardDescription>
+                    </div>
+                    <LiveIndicator />
+                  </div>
+                </CardHeader>
+                <CardContent className="relative">
+                  <ResponsiveContainer width="100%" height={380}>
+                    <RadarChart data={radarData}>
+                      <PolarGrid stroke="hsl(var(--border))" strokeOpacity={0.5} />
+                      <PolarAngleAxis 
+                        dataKey="subject" 
+                        tick={{ fill: 'hsl(var(--foreground))', fontSize: 10, fontWeight: 500 }}
+                      />
+                      <PolarRadiusAxis 
+                        angle={90} 
+                        domain={[0, 150]} 
+                        tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }}
+                        tickCount={4}
+                      />
+                      <Radar
+                        name="Ideal"
+                        dataKey="ideal"
+                        stroke="hsl(var(--muted-foreground))"
+                        fill="hsl(var(--muted))"
+                        fillOpacity={0.2}
+                        strokeWidth={2}
+                        strokeDasharray="5 5"
+                      />
+                      <Radar
+                        name="Actual"
+                        dataKey="actual"
+                        stroke="hsl(var(--primary))"
+                        fill="hsl(var(--primary))"
+                        fillOpacity={0.3}
+                        strokeWidth={2}
+                      />
+                      <Legend 
+                        wrapperStyle={{ paddingTop: '20px' }}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: 'hsl(var(--card))',
+                          border: '1px solid hsl(var(--border))',
+                          borderRadius: '12px',
+                          boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+                          padding: '12px'
+                        }}
+                        formatter={(value: number) => [`${value.toFixed(1)}%`, '']}
+                      />
+                    </RadarChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+
+              {/* Quick Metrics */}
+              <div className="lg:col-span-2 space-y-4 min-h-[400px]">
+                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider px-1">
+                  Key Metrics (Live) • {metricsData.length} total
+                </h3>
+                <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2">
+                  {metricsData.length === 0 ? (
+                    <div className="p-4 rounded-xl border border-border/50 bg-card/50 text-center">
+                      <Activity className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+                      <p className="text-muted-foreground text-sm">No metrics data available</p>
+                      <p className="text-muted-foreground text-xs mt-1">Waiting for sensor data...</p>
+                    </div>
+                  ) : (
+                    metricsData.slice(0, 6).map((metric) => {
+                      const comparison = getComparisonStatus(metric.actual, metric.ideal);
+                      const MetricIcon = metric.icon;
+                      const StatusIcon = comparison.icon;
+                      const deviation = getDeviationPercent(metric.actual, metric.ideal);
+                      const isHovered = hoveredMetric === metric.parameter;
+
+                      return (
+                        <div 
+                          key={metric.parameter}
+                          className={`metric-item group relative overflow-hidden rounded-xl border ${comparison.borderColor} ${comparison.bgColor} p-4 cursor-pointer transition-all duration-300 ${isHovered ? 'scale-[1.02] shadow-lg' : ''}`}
+                          onMouseEnter={() => setHoveredMetric(metric.parameter)}
+                          onMouseLeave={() => setHoveredMetric(null)}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className={`p-2 rounded-lg ${comparison.bgColor}`}>
+                                <MetricIcon className={`w-4 h-4 ${comparison.color}`} />
+                              </div>
+                              <div>
+                                <h4 className="font-semibold text-foreground text-sm">{metric.parameter}</h4>
+                                <p className="text-xs text-muted-foreground">{metric.description}</p>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="flex items-baseline gap-1">
+                                <span className="text-lg font-bold text-foreground">{metric.actual}</span>
+                                <span className="text-xs text-muted-foreground">{metric.unit}</span>
+                              </div>
+                              <div className={`flex items-center gap-1 text-xs ${comparison.color}`}>
+                                {parseFloat(deviation) > 0 ? '+' : ''}{deviation}%
+                                <StatusIcon className="w-3 h-3" />
+                              </div>
+                            </div>
+                          </div>
+                          
+                          {/* Expandable details */}
+                          <div className={`mt-3 pt-3 border-t border-border/30 transition-all duration-300 ${isHovered ? 'opacity-100 max-h-20' : 'opacity-0 max-h-0 overflow-hidden'}`}>
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-muted-foreground">Ideal: {metric.ideal} {metric.unit}</span>
+                              <span className="text-muted-foreground">Related: {metric.relatedTo}</span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+                <Button 
+                  variant="ghost" 
+                  className="w-full text-muted-foreground hover:text-foreground"
+                  onClick={() => setActiveTab('metrics')}
+                >
+                  View All Metrics
+                  <ChevronRight className="w-4 h-4 ml-1" />
+                </Button>
+              </div>
+            </div>
+
+            {/* Correlations */}
+            <Card className="main-card border-border/50 bg-card/80 backdrop-blur-sm">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <div className="p-1.5 rounded-lg bg-violet-500/10">
+                    <Activity className="w-4 h-4 text-violet-400" />
+                  </div>
+                  Parameter Performance
+                </CardTitle>
+                <CardDescription>How each parameter compares to ideal values</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {correlationData.map((item, index) => (
+                    <div 
+                      key={index}
+                      className="relative overflow-hidden rounded-xl border border-border/50 bg-card/50 p-4 group hover:border-primary/50 transition-all duration-300"
+                    >
+                      <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                      <div className="relative">
+                        <p className="text-sm font-medium text-foreground mb-3">{item.pair}</p>
+                        <div className="flex items-end justify-between">
+                          <div className="flex-1 mr-4">
+                            <div className="h-2 rounded-full bg-muted overflow-hidden">
+                              <div 
+                                className="h-full rounded-full transition-all duration-1000"
+                                style={{ width: `${item.strength}%`, backgroundColor: item.color }}
+                              />
+                            </div>
+                          </div>
+                          <span className="text-2xl font-bold" style={{ color: item.color }}>{item.strength}%</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Metrics Tab */}
+          <TabsContent value="metrics" className="space-y-6 mt-0">
+            {metricsData.length === 0 ? (
+              <Card className="border-border/50 bg-card/80">
+                <CardContent className="p-8 text-center">
+                  <Activity className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                  <p className="text-muted-foreground">No metrics data available</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {metricsData.map((metric) => {
+                  const comparison = getComparisonStatus(metric.actual, metric.ideal);
+                  const MetricIcon = metric.icon;
+                  const deviation = getDeviationPercent(metric.actual, metric.ideal);
+                  const progressPercent = metric.ideal > 0 ? Math.min((metric.actual / metric.ideal) * 100, 150) : 0;
+
+                  return (
+                    <Card 
+                      key={metric.parameter}
+                      className="main-card group border-border/50 bg-card/80 backdrop-blur-sm overflow-hidden hover:border-primary/50 transition-all duration-300 hover:shadow-lg hover:shadow-primary/5"
+                    >
+                      <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                      <CardHeader className="relative pb-3">
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className={`p-2 rounded-lg ${comparison.bgColor} group-hover:scale-110 transition-transform`}>
+                              <MetricIcon className={`w-4 h-4 ${comparison.color}`} />
+                            </div>
+                            <div>
+                              <CardTitle className="text-base">{metric.parameter}</CardTitle>
+                              <CardDescription className="text-xs">{metric.description}</CardDescription>
+                            </div>
+                          </div>
+                        </div>
+                        <Badge variant="outline" className={`${getCategoryStyle(metric.category)} border text-[10px] uppercase mt-2 w-fit`}>
+                          {metric.category}
+                        </Badge>
+                      </CardHeader>
+                      <CardContent className="relative space-y-4">
+                        {/* Values */}
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="p-3 rounded-lg bg-muted/30 border border-border/30">
+                            <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Actual</p>
+                            <p className="text-xl font-bold text-foreground">
+                              {metric.actual}
+                              <span className="text-xs text-muted-foreground ml-1">{metric.unit}</span>
+                            </p>
+                          </div>
+                          <div className="p-3 rounded-lg bg-primary/5 border border-primary/20">
+                            <p className="text-[10px] uppercase tracking-wider text-primary/70 mb-1">Ideal</p>
+                            <p className="text-xl font-bold text-primary">
+                              {metric.ideal}
+                              <span className="text-xs text-primary/70 ml-1">{metric.unit}</span>
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Progress */}
+                        <div>
+                          <div className="flex justify-between text-xs mb-2">
+                            <span className="text-muted-foreground">Progress to Ideal</span>
+                            <span className={`font-semibold ${comparison.color}`}>
+                              {parseFloat(deviation) > 0 ? '+' : ''}{deviation}%
+                            </span>
+                          </div>
+                          <div className="h-2 rounded-full bg-muted overflow-hidden">
+                            <div 
+                              className="h-full rounded-full bg-gradient-to-r from-primary to-primary/70 transition-all duration-700"
+                              style={{ width: `${Math.min(progressPercent, 100)}%` }}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Status */}
+                        <div className="flex items-center justify-between pt-2 border-t border-border/30">
+                          <span className="text-xs text-muted-foreground">{metric.relatedTo}</span>
+                          <Badge className={`${comparison.bgColor} ${comparison.color} border-0 text-xs`}>
+                            {comparison.status === 'optimal' ? 'Optimal' : comparison.status === 'above' ? 'Above' : comparison.status === 'below' ? 'Below' : 'N/A'}
+                          </Badge>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </TabsContent>
+
+          {/* Trends Tab */}
+          <TabsContent value="trends" className="space-y-6 mt-0">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <Card className="main-card border-border/50 bg-card/80 backdrop-blur-sm">
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <div className="p-1.5 rounded-lg bg-primary/10">
+                      <TrendingUp className="w-4 h-4 text-primary" />
+                    </div>
+                    Equilibrium & Cadence
+                  </CardTitle>
+                  <CardDescription>Recent data trend ({historicalData.length} entries)</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={320}>
+                    <AreaChart data={historicalData}>
+                      <defs>
+                        <linearGradient id="equilibriumFill" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3}/>
+                          <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" strokeOpacity={0.5} />
+                      <XAxis 
+                        dataKey="label" 
+                        tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
+                        axisLine={{ stroke: 'hsl(var(--border))' }}
+                      />
+                      <YAxis 
+                        yAxisId="left"
+                        tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
+                        axisLine={{ stroke: 'hsl(var(--border))' }}
+                        domain={[0, 'auto']}
+                      />
+                      <YAxis 
+                        yAxisId="right"
+                        orientation="right"
+                        tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
+                        axisLine={{ stroke: 'hsl(var(--border))' }}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: 'hsl(var(--card))',
+                          border: '1px solid hsl(var(--border))',
+                          borderRadius: '12px',
+                          boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+                        }}
+                      />
+                      <Legend />
+                      <Area 
+                        yAxisId="left"
+                        type="monotone" 
+                        dataKey="equilibrium" 
+                        stroke="hsl(var(--primary))" 
+                        fill="url(#equilibriumFill)"
+                        strokeWidth={2}
+                        name="Equilibrium"
+                      />
+                      <Line 
+                        yAxisId="right"
+                        type="monotone" 
+                        dataKey="cadence" 
+                        stroke="hsl(142 76% 36%)" 
+                        strokeWidth={2}
+                        name="Cadence"
+                        dot={{ fill: 'hsl(142 76% 36%)', strokeWidth: 0, r: 4 }}
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+
+              <Card className="main-card border-border/50 bg-card/80 backdrop-blur-sm">
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <div className="p-1.5 rounded-lg bg-amber-500/10">
+                      <Activity className="w-4 h-4 text-amber-400" />
+                    </div>
+                    Speed & Knee Force
+                  </CardTitle>
+                  <CardDescription>Track biomechanics over time</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={320}>
+                    <AreaChart data={historicalData}>
+                      <defs>
+                        <linearGradient id="speedFill" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="hsl(38 92% 50%)" stopOpacity={0.3}/>
+                          <stop offset="95%" stopColor="hsl(38 92% 50%)" stopOpacity={0}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" strokeOpacity={0.5} />
+                      <XAxis 
+                        dataKey="label" 
+                        tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
+                        axisLine={{ stroke: 'hsl(var(--border))' }}
+                      />
+                      <YAxis 
+                        yAxisId="left"
+                        tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
+                        axisLine={{ stroke: 'hsl(var(--border))' }}
+                      />
+                      <YAxis 
+                        yAxisId="right"
+                        orientation="right"
+                        tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
+                        axisLine={{ stroke: 'hsl(var(--border))' }}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: 'hsl(var(--card))',
+                          border: '1px solid hsl(var(--border))',
+                          borderRadius: '12px',
+                          boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+                        }}
+                      />
+                      <Legend />
+                      <Area 
+                        yAxisId="left"
+                        type="monotone" 
+                        dataKey="speed" 
+                        stroke="hsl(38 92% 50%)" 
+                        fill="url(#speedFill)"
+                        strokeWidth={2}
+                        name="Speed (m/s)"
+                      />
+                      <Line 
+                        yAxisId="right"
+                        type="monotone" 
+                        dataKey="kneeForce" 
+                        stroke="hsl(260 100% 70%)" 
+                        strokeWidth={2}
+                        name="Knee Force (N)"
+                        dot={{ fill: 'hsl(260 100% 70%)', strokeWidth: 0, r: 4 }}
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          {/* Insights Tab */}
+          <TabsContent value="insights" className="space-y-6 mt-0">
+            {/* Recommendations */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/20">
+                  <Lightbulb className="w-5 h-5 text-amber-400" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-foreground">Personalized Recommendations</h2>
+                  <p className="text-sm text-muted-foreground">Based on your real-time sensor data</p>
+                </div>
+              </div>
+
+              {recommendations.length === 0 ? (
+                <Card className="border-emerald-500/20 bg-emerald-500/5">
+                  <CardContent className="p-6 text-center">
+                    <CheckCircle2 className="w-12 h-12 text-emerald-400 mx-auto mb-3" />
+                    <p className="text-lg font-semibold text-foreground">All parameters are optimal!</p>
+                    <p className="text-sm text-muted-foreground">Keep up the great work maintaining your gait health.</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {recommendations.map((rec, index) => {
+                    const Icon = rec.icon;
+                    const priorityStyles = {
+                      high: { border: 'border-red-500/30', bg: 'bg-red-500/10', text: 'text-red-400', badge: 'bg-red-500/20 text-red-400' },
+                      medium: { border: 'border-amber-500/30', bg: 'bg-amber-500/10', text: 'text-amber-400', badge: 'bg-amber-500/20 text-amber-400' },
+                      low: { border: 'border-emerald-500/30', bg: 'bg-emerald-500/10', text: 'text-emerald-400', badge: 'bg-emerald-500/20 text-emerald-400' },
+                    };
+                    const style = priorityStyles[rec.priority as keyof typeof priorityStyles];
+
+                    return (
+                      <Card 
+                        key={index}
+                        className={`insight-card group border ${style.border} bg-card/80 backdrop-blur-sm overflow-hidden hover:shadow-lg transition-all duration-300`}
+                      >
+                        <div className={`absolute inset-0 ${style.bg} opacity-30`} />
+                        <CardHeader className="relative pb-3">
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex items-start gap-3">
+                              <div className={`p-2.5 rounded-xl ${style.bg} group-hover:scale-110 transition-transform`}>
+                                <Icon className={`w-5 h-5 ${style.text}`} />
+                              </div>
+                              <div className="flex-1">
+                                <CardTitle className="text-base leading-tight">{rec.title}</CardTitle>
+                                <Badge className={`${style.badge} border-0 text-[10px] uppercase mt-2`}>
+                                  {rec.priority} Priority
+                                </Badge>
+                              </div>
+                            </div>
+                            <div className="text-right shrink-0">
+                              <div className={`text-2xl font-bold ${style.text}`}>{rec.impact}</div>
+                              <div className="text-xs text-muted-foreground">{rec.impactLabel}</div>
+                            </div>
+                          </div>
+                        </CardHeader>
+                        <CardContent className="relative space-y-4">
+                          <p className="text-sm text-muted-foreground leading-relaxed">
+                            {rec.description}
+                          </p>
+                          <Button 
+                            variant="outline" 
+                            className={`w-full ${style.border} hover:${style.bg} group-hover:border-primary/50`}
+                          >
+                            {rec.action}
+                            <ArrowUpRight className="w-4 h-4 ml-2 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                          </Button>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Key Insights */}
+            <Card className="main-card border-sky-500/20 bg-gradient-to-br from-sky-500/5 via-card/80 to-card/80 backdrop-blur-sm">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <div className="p-1.5 rounded-lg bg-sky-500/10">
+                    <Info className="w-4 h-4 text-sky-400" />
+                  </div>
+                  Analysis Summary
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                      <h4 className="font-semibold text-foreground">Strengths ({optimalCount} optimal)</h4>
+                    </div>
+                    <ul className="space-y-3">
+                      {metricsData
+                        .filter(m => getComparisonStatus(m.actual, m.ideal).status === 'optimal')
+                        .slice(0, 3)
+                        .map((metric, i) => (
+                          <li key={i} className="flex items-start gap-3 text-sm text-muted-foreground">
+                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-2 shrink-0" />
+                            <span>{metric.parameter} is within optimal range ({metric.actual} {metric.unit})</span>
+                          </li>
+                        ))}
+                      {optimalCount === 0 && (
+                        <li className="text-sm text-muted-foreground italic">
+                          Working towards optimal parameters...
+                        </li>
+                      )}
+                    </ul>
+                  </div>
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="w-5 h-5 text-amber-400" />
+                      <h4 className="font-semibold text-foreground">Areas for Improvement ({aboveCount + belowCount} parameters)</h4>
+                    </div>
+                    <ul className="space-y-3">
+                      {metricsData
+                        .filter(m => getComparisonStatus(m.actual, m.ideal).status !== 'optimal')
+                        .slice(0, 3)
+                        .map((metric, i) => {
+                          const status = getComparisonStatus(metric.actual, metric.ideal);
+                          const deviation = Math.abs(parseFloat(getDeviationPercent(metric.actual, metric.ideal)));
+                          return (
+                            <li key={i} className="flex items-start gap-3 text-sm text-muted-foreground">
+                              <div className="w-1.5 h-1.5 rounded-full bg-amber-400 mt-2 shrink-0" />
+                              <span>
+                                {metric.parameter} is {deviation.toFixed(0)}% {status.status === 'above' ? 'above' : 'below'} ideal
+                              </span>
+                            </li>
+                          );
+                        })}
+                      {aboveCount + belowCount === 0 && (
+                        <li className="text-sm text-emerald-400">
+                          All parameters are optimal! Great job!
+                        </li>
+                      )}
+                    </ul>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </div>
+    </div>
+  );
+};
+
+export default Comparison;
+

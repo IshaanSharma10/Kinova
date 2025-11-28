@@ -28,6 +28,7 @@ const navigation = [
   { name: 'Live View', href: '/live-view', icon: Zap },
   { name: 'Analytics', href: '/analytics', icon: BarChart3 },
   { name: 'Insights', href: '/insights', icon: TrendingUp },
+  { name: 'Comparison', href: '/comparison', icon: TrendingUp },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
 
@@ -77,13 +78,13 @@ export function AppSidebar() {
         </div>
       </SidebarHeader>
 
-      <SidebarContent>
+      <SidebarContent className="flex flex-col gap-6 py-4">
         <SidebarGroup>
-          <SidebarGroupLabel className="text-muted-foreground text-xs font-semibold uppercase tracking-wide px-3">
+          <SidebarGroupLabel className="text-muted-foreground text-xs font-semibold uppercase tracking-wide px-3 mb-2">
             Navigation
           </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
+          <SidebarGroupContent className="px-2">
+            <SidebarMenu className="space-y-2">
               {navigation.map((item) => (
                 <SidebarMenuItem key={item.name}>
                   <SidebarMenuButton asChild>
@@ -105,14 +106,14 @@ export function AppSidebar() {
 
         {open && (
           <SidebarGroup>
-            <SidebarGroupLabel className="text-muted-foreground text-xs font-semibold uppercase tracking-wide px-3">
+            <SidebarGroupLabel className="text-muted-foreground text-xs font-semibold uppercase tracking-wide px-3 mb-2">
               Gait Parameters
             </SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
+            <SidebarGroupContent className="px-2">
+              <SidebarMenu className="space-y-1.5">
                 {sensors.map((sensor) => (
                   <SidebarMenuItem key={sensor.name}>
-                    <div className="flex items-center gap-3 px-3 py-1 text-xs">
+                    <div className="flex items-center gap-3 px-3 py-1.5 text-xs rounded-md bg-sidebar-accent/10">
                       <div
                         className={`h-2 w-2 rounded-full transition-all duration-300 ${
                           sensor.active 

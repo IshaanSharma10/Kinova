@@ -13,6 +13,7 @@ import SignIn from "./pages/SignIn";
 import SignUp from "./pages/SignUp";
 import NotFound from "./pages/NotFound";
 import ForgotPassword from "./pages/ForgotPassword";
+import Comparison from "./pages/Comparison";
 
 const queryClient = new QueryClient();
 
@@ -42,6 +43,14 @@ const App = () => (
             element={
               <MainLayout>
                <WorkoutTracker/>
+              </MainLayout>
+            }
+          />
+          <Route
+            path="/comparison"
+            element={
+              <MainLayout>
+                <Comparison />
               </MainLayout>
             }
           />
