@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Kinova - Redirecting...</title>
+    <link rel="icon" href="/logo.jpg" />
+    <script>
+      // Single Page App redirect for GitHub Pages, Netlify, and other static hosts
+      // This script takes the current URL and redirects to the root with the path as a query parameter
+      // The main app will then use this to navigate to the correct route
+      const path = window.location.pathname + window.location.search + window.location.hash;
+      
+      // For most SPAs, we can just redirect to the index and let React Router handle it
+      // Store the intended path in sessionStorage for the app to pick up
+      sessionStorage.setItem('redirectPath', path);
+      
+      // Redirect to the root
+      window.location.replace('/');
+    </script>
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        background: #0f1419;
+        color: #e7e9ea;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+        margin: 0;
+      }
+      .loader {
+        text-align: center;
+      }
+      .spinner {
+        width: 40px;
+        height: 40px;
+        border: 3px solid #1d9bf0;
+        border-top-color: transparent;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin: 0 auto 16px;
+      }
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="loader">
+      <div class="spinner"></div>
+      <p>Redirecting to Kinova...</p>
+    </div>
+  </body>
+</html>
+

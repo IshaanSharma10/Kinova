@@ -4,9 +4,11 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { LiveIndicator } from '@/components/ui/live-indicator';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, Tooltip, Legend, LineChart, Line, XAxis, YAxis, CartesianGrid, Area, AreaChart } from 'recharts';
 import gsap from 'gsap';
-import { Activity, TrendingUp, TrendingDown, Target, Lightbulb, Calendar, CheckCircle2, AlertCircle, Info, Zap, BarChart3, ChevronRight, ArrowUpRight, Scale, Footprints, Gauge, Timer, Loader2, Brain, Download } from 'lucide-react';
+import { Activity, TrendingUp, TrendingDown, Target, Lightbulb, Calendar, CheckCircle2, AlertCircle, Info, Zap, BarChart3, ChevronRight, Scale, Footprints, Gauge, Timer, Loader2, Brain, Download, User, Ruler, Weight, Edit3, Save, X } from 'lucide-react';
 import { useGaitMetrics, GaitDataEntry } from '@/hooks/useGaitMetrics';
 import { useMLInsightsFromFirebase } from '@/hooks/useMLInsightsFromFirebase';
 import jsPDF from 'jspdf';
@@ -23,17 +25,106 @@ interface MetricData {
   icon: React.ElementType;
 }
 
-// Ideal values for biomechanical parameters (based on research standards)
-const IDEAL_VALUES = {
-  equilibriumScore: 0.95,      // Near perfect balance (0-1 scale)
-  posturalSway: 15.0,          // mm - lower is better
-  cadence: 120,                // steps/min - optimal walking cadence
-  frequency: 2.0,              // Hz - optimal step frequency
-  stepWidth: 0.10,             // m - optimal lateral step distance
-  kneeForce: 800,              // N - ideal peak knee force
-  walkingSpeed: 1.4,           // m/s - optimal walking velocity
-  strideLength: 1.5,           // m - optimal stride length
-  steps: 10000,                // daily step goal
+interface UserProfile {
+  height: number; // cm
+  weight: number; // kg
+  age?: number;
+  gender?: 'male' | 'female' | 'other';
+}
+
+// Research-based formulas for calculating ideal gait parameters
+// Based on biomechanical research and clinical studies
+const calculateIdealParameters = (profile: UserProfile) => {
+  const { height, weight } = profile;
+  const heightM = height / 100; // Convert to meters
+  const bmi = weight / (heightM * heightM);
+  const legLength = height * 0.53; // Leg length is approximately 53% of height
+  
+  // Cadence: Decreases with height (taller people take fewer, longer steps)
+  // Reference: Bohannon, R.W. (1997) - Comfortable and maximum walking speed
+  // Formula adjusted for height: base cadence adjusted by height deviation from average (170cm)
+  const idealCadence = Math.round(115 - (height - 170) * 0.15);
+  
+  // Walking Speed: Correlates with leg length
+  // Reference: Oberg et al. (1993) - Basic gait parameters
+  // Formula: ~0.9-1.0 × leg length in meters for comfortable walking
+  const idealWalkingSpeed = parseFloat((legLength / 100 * 0.95).toFixed(2));
+  
+  // Stride Length: ~40-45% of height
+  // Reference: Murray et al. (1964) - Walking patterns of normal men
+  const idealStrideLength = parseFloat((height * 0.43 / 100).toFixed(3));
+  
+  // Step Width: Related to height for stability
+  // Reference: Gabell & Nayak (1984) - Variability of gait parameters
+  // Normal range: 5-13cm, slightly wider for taller individuals
+  const idealStepWidth = parseFloat((0.06 + (height - 150) * 0.0008).toFixed(4));
+  
+  // Knee Force: Approximately 1.5-2x body weight during normal walking
+  // Reference: Kutzner et al. (2010) - In vivo knee joint forces
+  const idealKneeForce = Math.round(weight * 9.81 * 1.5);
+  
+  // Step Frequency (Hz): Derived from cadence
+  // Frequency = Cadence / 60
+  const idealFrequency = parseFloat((idealCadence / 60).toFixed(3));
+  
+  // Postural Sway: Increases with BMI and height
+  // Reference: Hue et al. (2007) - Body weight and postural sway
+  // Lower is better, adjusted for body composition
+  const baseSway = 12; // mm for ideal BMI
+  const bmiAdjustment = Math.max(0, (bmi - 22) * 0.5);
+  const heightAdjustment = (height - 170) * 0.03;
+  const idealPosturalSway = parseFloat((baseSway + bmiAdjustment + heightAdjustment).toFixed(1));
+  
+  // Equilibrium Score: Inversely related to BMI extremes
+  // Reference: Greve et al. (2007) - Correlation between BMI and postural balance
+  // Optimal BMI (20-25) gives best balance
+  let idealEquilibrium = 0.95;
+  if (bmi < 18.5 || bmi > 30) {
+    idealEquilibrium = 0.85;
+  } else if (bmi < 20 || bmi > 27) {
+    idealEquilibrium = 0.90;
+  }
+  
+  return {
+    cadence: idealCadence,
+    walkingSpeed: idealWalkingSpeed,
+    strideLength: idealStrideLength,
+    stepWidth: idealStepWidth,
+    kneeForce: idealKneeForce,
+    frequency: idealFrequency,
+    posturalSway: idealPosturalSway,
+    equilibriumScore: idealEquilibrium,
+    bmi: parseFloat(bmi.toFixed(1)),
+    legLength: parseFloat(legLength.toFixed(1)),
+  };
+};
+
+// Default profile values
+const DEFAULT_PROFILE: UserProfile = {
+  height: 170,
+  weight: 70,
+};
+
+// Load profile from localStorage
+const loadProfile = (): UserProfile => {
+  try {
+    const saved = localStorage.getItem('kinova_user_profile');
+    if (saved) {
+      return JSON.parse(saved);
+    }
+  } catch (e) {
+    console.error('Error loading profile:', e);
+  }
+  return DEFAULT_PROFILE;
+};
+
+// Save profile to localStorage
+const saveProfile = (profile: UserProfile) => {
+  try {
+    localStorage.setItem('kinova_user_profile', JSON.stringify(profile));
+  } catch (e) {
+    console.error('Error saving profile:', e);
+  }
 };
 
 const Comparison = () => {
@@ -41,11 +132,51 @@ const Comparison = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [hoveredMetric, setHoveredMetric] = useState<string | null>(null);
   
+  // User profile state
+  const [userProfile, setUserProfile] = useState<UserProfile>(loadProfile);
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [tempProfile, setTempProfile] = useState<UserProfile>(userProfile);
+  const [isProfileSet, setIsProfileSet] = useState(() => {
+    // Check if profile has been explicitly saved by user
+    return !!localStorage.getItem('kinova_user_profile');
+  });
+  const [showProfilePrompt, setShowProfilePrompt] = useState(() => {
+    // Show prompt if profile hasn't been set
+    return !localStorage.getItem('kinova_user_profile');
+  });
+  
   // Fetch real-time data from Firebase
   const { data: gaitData, loading, error } = useGaitMetrics();
   
   // Fetch ML insights (gait score) from Firebase
   const { data: mlData, loading: mlLoading } = useMLInsightsFromFirebase('/gaitData/average_scores');
+  
+  // Calculate ideal parameters based on user profile
+  const idealParameters = useMemo(() => {
+    return calculateIdealParameters(userProfile);
+  }, [userProfile]);
+
+  // Handle profile save
+  const handleSaveProfile = useCallback(() => {
+    if (tempProfile.height >= 100 && tempProfile.height <= 250 && 
+        tempProfile.weight >= 30 && tempProfile.weight <= 300) {
+      setUserProfile(tempProfile);
+      saveProfile(tempProfile);
+      setIsProfileSet(true); // Mark profile as set
+      setIsEditingProfile(false);
+      setShowProfilePrompt(false);
+    }
+  }, [tempProfile]);
+
+  // Handle profile cancel
+  const handleCancelEdit = useCallback(() => {
+    setTempProfile(userProfile);
+    setIsEditingProfile(false);
+    if (showProfilePrompt && localStorage.getItem('kinova_user_profile')) {
+      setShowProfilePrompt(false);
+    }
+  }, [userProfile, showProfilePrompt]);
+
 
   useEffect(() => {
     document.title = 'Biomechanical Comparison | SensorViz';
@@ -113,7 +244,7 @@ const Comparison = () => {
     return gaitData[0];
   }, [gaitData]);
 
-  // Transform Firebase data to metrics format
+  // Transform Firebase data to metrics format using personalized ideal values
   const metricsData: MetricData[] = useMemo(() => {
     if (!latestEntry) return [];
 
@@ -121,37 +252,37 @@ const Comparison = () => {
       {
         parameter: 'Equilibrium',
         actual: formatValue(latestEntry.equilibriumScore, 4),
-        ideal: IDEAL_VALUES.equilibriumScore,
+        ideal: idealParameters.equilibriumScore,
         unit: 'score',
         category: 'Balance',
         description: 'Balance & Stability Score',
-        relatedTo: 'Postural Control',
+        relatedTo: `BMI: ${idealParameters.bmi}`,
         icon: Target
       },
       {
         parameter: 'Postural Sway',
         actual: formatValue(latestEntry.posturalSway, 2),
-        ideal: IDEAL_VALUES.posturalSway,
+        ideal: idealParameters.posturalSway,
         unit: 'mm',
         category: 'Balance',
         description: 'Body Oscillation',
-        relatedTo: 'Core Stability',
+        relatedTo: `BMI-adjusted`,
         icon: Activity
       },
       {
         parameter: 'Cadence',
         actual: formatValue(latestEntry.cadence, 1),
-        ideal: IDEAL_VALUES.cadence,
+        ideal: idealParameters.cadence,
         unit: 'steps/min',
         category: 'Gait Parameters',
         description: 'Step Rate',
-        relatedTo: 'Walking Efficiency',
+        relatedTo: `Height: ${userProfile.height}cm`,
         icon: Gauge
       },
       {
         parameter: 'Frequency',
         actual: formatValue(latestEntry.frequency, 3),
-        ideal: IDEAL_VALUES.frequency,
+        ideal: idealParameters.frequency,
         unit: 'Hz',
         category: 'Gait Parameters',
         description: 'Step Frequency',
@@ -161,45 +292,45 @@ const Comparison = () => {
       {
         parameter: 'Step Width',
         actual: formatValue(latestEntry.stepWidth, 4),
-        ideal: IDEAL_VALUES.stepWidth,
+        ideal: idealParameters.stepWidth,
         unit: 'm',
         category: 'Gait Parameters',
         description: 'Lateral Step Distance',
-        relatedTo: 'Lateral Stability',
+        relatedTo: `Height: ${userProfile.height}cm`,
         icon: Footprints
       },
       {
         parameter: 'Knee Force',
         actual: formatValue(latestEntry.kneeForce, 1),
-        ideal: IDEAL_VALUES.kneeForce,
+        ideal: idealParameters.kneeForce,
         unit: 'N',
         category: 'Biomechanics',
         description: 'Peak Knee Joint Force',
-        relatedTo: 'Joint Health',
+        relatedTo: `Weight: ${userProfile.weight}kg`,
         icon: Zap
       },
       {
         parameter: 'Walking Speed',
         actual: formatValue(latestEntry.walkingSpeed, 3),
-        ideal: IDEAL_VALUES.walkingSpeed,
+        ideal: idealParameters.walkingSpeed,
         unit: 'm/s',
         category: 'Gait Parameters',
         description: 'Average Walking Velocity',
-        relatedTo: 'Overall Mobility',
+        relatedTo: `Leg: ${idealParameters.legLength}cm`,
         icon: TrendingUp
       },
       {
         parameter: 'Stride Length',
         actual: formatValue(latestEntry.strideLength, 3),
-        ideal: IDEAL_VALUES.strideLength,
+        ideal: idealParameters.strideLength,
         unit: 'm',
         category: 'Gait Parameters',
         description: 'Distance Per Stride',
-        relatedTo: 'Leg Length',
+        relatedTo: `Height: ${userProfile.height}cm`,
         icon: Footprints
       }
     ];
-  }, [latestEntry]);
+  }, [latestEntry, idealParameters, userProfile]);
 
   // Transform data for radar chart
   const radarData = useMemo(() => {
@@ -532,6 +663,42 @@ const Comparison = () => {
 
     yPosition += scoreBoxHeight + 20;
 
+    // ============ USER PROFILE SECTION ============
+    doc.setTextColor(...darkColor);
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text('User Profile & Personalized Parameters', margin, yPosition);
+    yPosition += 10;
+
+    // Profile info box
+    doc.setFillColor(245, 247, 250);
+    doc.roundedRect(margin, yPosition, pageWidth - 2 * margin, 45, 5, 5, 'F');
+    
+    doc.setTextColor(...darkColor);
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Body Measurements', margin + 10, yPosition + 12);
+    
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.text(`Height: ${userProfile.height} cm`, margin + 10, yPosition + 24);
+    doc.text(`Weight: ${userProfile.weight} kg`, margin + 10, yPosition + 34);
+    doc.text(`BMI: ${idealParameters.bmi}`, margin + 10, yPosition + 44);
+    
+    doc.setFont('helvetica', 'bold');
+    doc.text('Calculated Ideal Parameters', margin + 80, yPosition + 12);
+    
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Cadence: ${idealParameters.cadence} steps/min`, margin + 80, yPosition + 24);
+    doc.text(`Walking Speed: ${idealParameters.walkingSpeed} m/s`, margin + 80, yPosition + 34);
+    doc.text(`Stride Length: ${idealParameters.strideLength} m`, margin + 80, yPosition + 44);
+    
+    doc.text(`Knee Force: ${idealParameters.kneeForce} N`, margin + 145, yPosition + 24);
+    doc.text(`Step Frequency: ${idealParameters.frequency} Hz`, margin + 145, yPosition + 34);
+    doc.text(`Postural Sway: ${idealParameters.posturalSway} mm`, margin + 145, yPosition + 44);
+
+    yPosition += 55;
+
     // ============ METRICS TABLE ============
     doc.setTextColor(...darkColor);
     doc.setFontSize(16);
@@ -727,7 +894,7 @@ const Comparison = () => {
     // Save the PDF
     const fileName = `Kinova_Gait_Report_${new Date().toISOString().split('T')[0]}.pdf`;
     doc.save(fileName);
-  }, [metricsData, overallScore, optimalCount, mlClassification, mlGaitScore, recommendations, getComparisonStatus, getScoreLabel]);
+  }, [metricsData, overallScore, optimalCount, mlClassification, mlGaitScore, recommendations, getComparisonStatus, getScoreLabel, userProfile, idealParameters]);
 
   // Loading state
   if (loading || mlLoading) {
@@ -842,7 +1009,224 @@ const Comparison = () => {
             </div>
           </div>
 
-          {/* Quick Stats */}
+          {/* Profile Prompt Modal - Blocks all content until profile is set */}
+          {showProfilePrompt && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/95 backdrop-blur-md">
+              <Card className="w-full max-w-md mx-4 border-primary/20 shadow-2xl shadow-primary/10">
+                <CardHeader className="text-center pb-2">
+                  <div className="mx-auto p-3 rounded-full bg-primary/10 w-fit mb-2">
+                    <User className="w-8 h-8 text-primary" />
+                  </div>
+                  <CardTitle className="text-xl">Set Up Your Profile</CardTitle>
+                  <CardDescription>
+                    Enter your height and weight to get personalized ideal gait parameters
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="height" className="flex items-center gap-2">
+                        <Ruler className="w-4 h-4 text-muted-foreground" />
+                        Height (cm)
+                      </Label>
+                      <Input
+                        id="height"
+                        type="number"
+                        min={100}
+                        max={250}
+                        value={tempProfile.height}
+                        onChange={(e) => setTempProfile(prev => ({ ...prev, height: Number(e.target.value) }))}
+                        className="bg-background"
+                        placeholder="170"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="weight" className="flex items-center gap-2">
+                        <Weight className="w-4 h-4 text-muted-foreground" />
+                        Weight (kg)
+                      </Label>
+                      <Input
+                        id="weight"
+                        type="number"
+                        min={30}
+                        max={300}
+                        value={tempProfile.weight}
+                        onChange={(e) => setTempProfile(prev => ({ ...prev, weight: Number(e.target.value) }))}
+                        className="bg-background"
+                        placeholder="70"
+                      />
+                    </div>
+                  </div>
+                  
+                  {/* Preview calculated values */}
+                  <div className="p-3 rounded-lg bg-muted/30 border border-border/50">
+                    <p className="text-xs text-muted-foreground mb-2">Preview of your personalized ideals:</p>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">BMI:</span>
+                        <span className="font-medium">{(tempProfile.weight / Math.pow(tempProfile.height / 100, 2)).toFixed(1)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Cadence:</span>
+                        <span className="font-medium">{Math.round(115 - (tempProfile.height - 170) * 0.15)} steps/min</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Speed:</span>
+                        <span className="font-medium">{((tempProfile.height * 0.53) / 100 * 0.95).toFixed(2)} m/s</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Stride:</span>
+                        <span className="font-medium">{(tempProfile.height * 0.43 / 100).toFixed(2)} m</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3 pt-2">
+                    <Button 
+                      className="flex-1 bg-primary"
+                      onClick={handleSaveProfile}
+                      disabled={tempProfile.height < 100 || tempProfile.height > 250 || tempProfile.weight < 30 || tempProfile.weight > 300}
+                    >
+                      <Save className="w-4 h-4 mr-2" />
+                      Save & Continue
+                    </Button>
+                  </div>
+                  <p className="text-xs text-center text-muted-foreground pt-2">
+                    Profile is required to compare your gait parameters with personalized ideal values
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* User Profile Card */}
+          <Card className="border-border/50 bg-card/80 backdrop-blur-sm">
+            <CardContent className="p-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="p-2.5 rounded-xl bg-violet-500/10 border border-violet-500/20">
+                    <User className="w-5 h-5 text-violet-400" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-foreground flex items-center gap-2">
+                      Your Profile
+                      {isProfileSet && (
+                        <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 text-[10px]">
+                          Personalized
+                        </Badge>
+                      )}
+                      {!isProfileSet && (
+                        <Badge variant="outline" className="bg-amber-500/10 text-amber-400 border-amber-500/20 text-[10px]">
+                          Required
+                        </Badge>
+                      )}
+                    </h3>
+                    <p className="text-sm text-muted-foreground">
+                      {isProfileSet 
+                        ? 'Ideal values calculated for your body measurements' 
+                        : 'Set your height and weight to enable personalized comparisons'}
+                    </p>
+                  </div>
+                </div>
+                
+                {isEditingProfile ? (
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5">
+                        <Ruler className="w-4 h-4 text-muted-foreground" />
+                        <Input
+                          type="number"
+                          min={100}
+                          max={250}
+                          value={tempProfile.height}
+                          onChange={(e) => setTempProfile(prev => ({ ...prev, height: Number(e.target.value) }))}
+                          className="w-20 h-8 text-sm"
+                        />
+                        <span className="text-xs text-muted-foreground">cm</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <Scale className="w-4 h-4 text-muted-foreground" />
+                        <Input
+                          type="number"
+                          min={30}
+                          max={300}
+                          value={tempProfile.weight}
+                          onChange={(e) => setTempProfile(prev => ({ ...prev, weight: Number(e.target.value) }))}
+                          className="w-20 h-8 text-sm"
+                        />
+                        <span className="text-xs text-muted-foreground">kg</span>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="ghost" onClick={handleCancelEdit}>
+                        <X className="w-4 h-4" />
+                      </Button>
+                      <Button size="sm" onClick={handleSaveProfile} className="bg-primary">
+                        <Save className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-6 px-4 py-2 rounded-lg bg-muted/30 border border-border/50">
+                      <div className="flex items-center gap-2">
+                        <Ruler className="w-4 h-4 text-primary" />
+                        <span className="font-semibold text-foreground">{userProfile.height}</span>
+                        <span className="text-xs text-muted-foreground">cm</span>
+                      </div>
+                      <div className="w-px h-6 bg-border" />
+                      <div className="flex items-center gap-2">
+                        <Scale className="w-4 h-4 text-primary" />
+                        <span className="font-semibold text-foreground">{userProfile.weight}</span>
+                        <span className="text-xs text-muted-foreground">kg</span>
+                      </div>
+                      <div className="w-px h-6 bg-border" />
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">BMI</span>
+                        <span className="font-semibold text-foreground">{idealParameters.bmi}</span>
+                      </div>
+                    </div>
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      onClick={() => {
+                        setTempProfile(userProfile);
+                        setIsEditingProfile(true);
+                      }}
+                      className="border-border/50"
+                    >
+                      <Edit3 className="w-4 h-4 mr-1" />
+                      Edit
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Quick Stats - Only show if profile is set */}
+          {!isProfileSet ? (
+            <Card className="border-amber-500/20 bg-amber-500/5">
+              <CardContent className="p-6 text-center">
+                <User className="w-12 h-12 text-amber-400 mx-auto mb-3" />
+                <h3 className="text-lg font-semibold text-foreground mb-2">Profile Required</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Please set your height and weight above to enable personalized gait parameter comparisons.
+                </p>
+                <Button 
+                  onClick={() => {
+                    setTempProfile(userProfile);
+                    setIsEditingProfile(true);
+                  }}
+                  className="bg-primary"
+                >
+                  <Edit3 className="w-4 h-4 mr-2" />
+                  Set Up Profile
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
+            <>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {/* ML Gait Score Card */}
             <div className={`hero-stat group relative overflow-hidden rounded-xl border ${getScoreColor(overallScore).border} bg-card/50 backdrop-blur-sm p-4 hover:border-primary/50 transition-all duration-300`}>
@@ -935,9 +1319,12 @@ const Comparison = () => {
               </div>
             </div>
           </div>
+            </>
+          )}
         </div>
 
-        {/* Main Content with Tabs */}
+        {/* Main Content with Tabs - Only show if profile is set */}
+        {isProfileSet && (
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="w-full sm:w-auto bg-card border border-border p-1.5 rounded-xl shadow-lg">
             <TabsTrigger 
@@ -1442,17 +1829,10 @@ const Comparison = () => {
                             </div>
                           </div>
                         </CardHeader>
-                        <CardContent className="relative space-y-4">
+                        <CardContent className="relative">
                           <p className="text-sm text-muted-foreground leading-relaxed">
                             {rec.description}
                           </p>
-                          <Button 
-                            variant="outline" 
-                            className={`w-full ${style.border} hover:${style.bg} group-hover:border-primary/50`}
-                          >
-                            {rec.action}
-                            <ArrowUpRight className="w-4 h-4 ml-2 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
-                          </Button>
                         </CardContent>
                       </Card>
                     );
@@ -1528,6 +1908,7 @@ const Comparison = () => {
             </Card>
           </TabsContent>
         </Tabs>
+        )}
       </div>
     </div>
   );

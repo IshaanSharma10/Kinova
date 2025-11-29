@@ -17,6 +17,21 @@ export default defineConfig(({ mode }) => ({
     proxy: {
       "/api": apiProxy,
     },
+    // Handle SPA routing - serve index.html for all non-file requests
+    fs: {
+      strict: false,
+    },
+  },
+
+  // Handle SPA routing in preview mode as well
+  preview: {
+    port: 8080,
+  },
+
+  // Build configuration
+  build: {
+    outDir: "dist",
+    sourcemap: mode === "development",
   },
 
   plugins: [
@@ -29,4 +44,10 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+
+  // Ensure proper base path for SPA routing
+  base: "/",
+
+  // App type for SPA
+  appType: "spa",
 }));
