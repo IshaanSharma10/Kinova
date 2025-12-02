@@ -29,7 +29,7 @@ const navigation = [
   { name: 'Analytics', href: '/analytics', icon: BarChart3 },
   { name: 'Insights', href: '/insights', icon: TrendingUp },
   { name: 'Comparison', href: '/comparison', icon: TrendingUp },
-  { name: 'Chatbot', href: '/chatbot', icon: MessageSquare },
+  // { name: 'Chatbot', href: '/chatbot', icon: MessageSquare },
 ];
 
 const sensors = [
