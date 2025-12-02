@@ -4,7 +4,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { 
   Activity, 
   BarChart3, 
-  Settings, 
+  MessageSquare, 
   Zap, 
   TrendingUp,
   User
@@ -29,7 +29,7 @@ const navigation = [
   { name: 'Analytics', href: '/analytics', icon: BarChart3 },
   { name: 'Insights', href: '/insights', icon: TrendingUp },
   { name: 'Comparison', href: '/comparison', icon: TrendingUp },
-  { name: 'Settings', href: '/settings', icon: Settings },
+  { name: 'Chatbot', href: '/chatbot', icon: MessageSquare },
 ];
 
 const sensors = [
@@ -137,7 +137,7 @@ export function AppSidebar() {
       <SidebarFooter className="border-t border-sidebar-border p-3">
         <SidebarMenuItem>
           <NavLink
-            to="/settings"
+            to="/chatbot"
             className={({ isActive }) =>
               `flex items-center gap-3 p-3 rounded-lg text-sm font-medium transition-all duration-300 ${
                 isActive

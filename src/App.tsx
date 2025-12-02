@@ -9,7 +9,7 @@ import Dashboard from "./pages/Dashboard";
 import WorkoutTracker from "./pages/WorkoutTracker";
 import Analytics from "./pages/Analytics";
 import Insights from "./pages/Insights";
-import Settings from "./pages/Settings";
+import Chatbot from "./pages/Chatbot";
 import SignIn from "./pages/SignIn";
 import SignUp from "./pages/SignUp";
 import NotFound from "./pages/NotFound";
@@ -91,10 +91,10 @@ const App = () => (
               }
             />
             <Route
-              path="/settings"
+              path="/chatbot"
               element={
                 <MainLayout>
-                  <Settings />
+                  <Chatbot />
                 </MainLayout>
               }
             />

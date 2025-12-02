@@ -138,10 +138,14 @@ const Comparison = () => {
   const [tempProfile, setTempProfile] = useState<UserProfile>(userProfile);
   const [isProfileSet, setIsProfileSet] = useState(() => {
     // Check if profile has been explicitly saved by user
-    return !!localStorage.getItem('kinova_user_profile');
+    const saved = localStorage.getItem('kinova_user_profile');
+    if (saved) return true;
+    // Auto-set default profile if not saved
+    saveProfile(DEFAULT_PROFILE);
+    return false; // Still show as not explicitly set, but allow content
   });
   const [showProfilePrompt, setShowProfilePrompt] = useState(() => {
-    // Show prompt if profile hasn't been set
+    // Show prompt if profile hasn't been explicitly set by user
     return !localStorage.getItem('kinova_user_profile');
   });
   
@@ -179,7 +183,7 @@ const Comparison = () => {
 
 
   useEffect(() => {
-    document.title = 'Biomechanical Comparison | SensorViz';
+    document.title = 'Biomechanical Comparison | Kinova';
 
     // Only run animations after data is loaded
     if (!loading && gaitData) {
@@ -1009,10 +1013,17 @@ const Comparison = () => {
             </div>
           </div>
 
-          {/* Profile Prompt Modal - Blocks all content until profile is set */}
+          {/* Profile Prompt Modal - Can be dismissed, doesn't block content */}
           {showProfilePrompt && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/95 backdrop-blur-md">
-              <Card className="w-full max-w-md mx-4 border-primary/20 shadow-2xl shadow-primary/10">
+              <div 
+                className="absolute inset-0" 
+                onClick={() => {
+                  // Allow dismissing by clicking outside
+                  setShowProfilePrompt(false);
+                }}
+              />
+              <Card className="relative z-10 w-full max-w-md mx-4 border-primary/20 shadow-2xl shadow-primary/10">
                 <CardHeader className="text-center pb-2">
                   <div className="mx-auto p-3 rounded-full bg-primary/10 w-fit mb-2">
                     <User className="w-8 h-8 text-primary" />
@@ -1083,6 +1094,15 @@ const Comparison = () => {
 
                   <div className="flex gap-3 pt-2">
                     <Button 
+                      variant="outline"
+                      onClick={() => {
+                        setShowProfilePrompt(false);
+                      }}
+                    >
+                      <X className="w-4 h-4 mr-2" />
+                      Skip for Now
+                    </Button>
+                    <Button 
                       className="flex-1 bg-primary"
                       onClick={handleSaveProfile}
                       disabled={tempProfile.height < 100 || tempProfile.height > 250 || tempProfile.weight < 30 || tempProfile.weight > 300}
@@ -1092,7 +1112,7 @@ const Comparison = () => {
                     </Button>
                   </div>
                   <p className="text-xs text-center text-muted-foreground pt-2">
-                    Profile is required to compare your gait parameters with personalized ideal values
+                    Using default values ({DEFAULT_PROFILE.height}cm, {DEFAULT_PROFILE.weight}kg) until you set your profile
                   </p>
                 </CardContent>
               </Card>
@@ -1204,29 +1224,7 @@ const Comparison = () => {
             </CardContent>
           </Card>
 
-          {/* Quick Stats - Only show if profile is set */}
-          {!isProfileSet ? (
-            <Card className="border-amber-500/20 bg-amber-500/5">
-              <CardContent className="p-6 text-center">
-                <User className="w-12 h-12 text-amber-400 mx-auto mb-3" />
-                <h3 className="text-lg font-semibold text-foreground mb-2">Profile Required</h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Please set your height and weight above to enable personalized gait parameter comparisons.
-                </p>
-                <Button 
-                  onClick={() => {
-                    setTempProfile(userProfile);
-                    setIsEditingProfile(true);
-                  }}
-                  className="bg-primary"
-                >
-                  <Edit3 className="w-4 h-4 mr-2" />
-                  Set Up Profile
-                </Button>
-              </CardContent>
-            </Card>
-          ) : (
-            <>
+          {/* Quick Stats - Always show, uses default profile if not set */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {/* ML Gait Score Card */}
             <div className={`hero-stat group relative overflow-hidden rounded-xl border ${getScoreColor(overallScore).border} bg-card/50 backdrop-blur-sm p-4 hover:border-primary/50 transition-all duration-300`}>
@@ -1319,12 +1317,10 @@ const Comparison = () => {
               </div>
             </div>
           </div>
-            </>
-          )}
         </div>
 
-        {/* Main Content with Tabs - Only show if profile is set */}
-        {isProfileSet && (
+        {/* Main Content with Tabs - Always show, uses default profile if not set */}
+        (
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="w-full sm:w-auto bg-card border border-border p-1.5 rounded-xl shadow-lg">
             <TabsTrigger 
@@ -1550,7 +1546,7 @@ const Comparison = () => {
                 </CardContent>
               </Card>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {metricsData.map((metric) => {
                   const comparison = getComparisonStatus(metric.actual, metric.ideal);
                   const MetricIcon = metric.icon;
@@ -1560,40 +1556,47 @@ const Comparison = () => {
                   return (
                     <Card 
                       key={metric.parameter}
-                      className="main-card group border-border/50 bg-card/80 backdrop-blur-sm overflow-hidden hover:border-primary/50 transition-all duration-300 hover:shadow-lg hover:shadow-primary/5"
+                      className="main-card group relative border-border/50 bg-card/80 backdrop-blur-sm overflow-hidden transition-all duration-500 ease-out hover:border-primary/50 hover:shadow-2xl hover:shadow-primary/20 hover:-translate-y-2 hover:scale-[1.02] cursor-pointer"
                     >
-                      <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                      <CardHeader className="relative pb-3">
+                      {/* Animated background gradient on hover */}
+                      <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                      
+                      {/* Shine effect on hover */}
+                      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-in-out" />
+                      </div>
+
+                      <CardHeader className="relative pb-3 z-10">
                         <div className="flex items-start justify-between">
                           <div className="flex items-center gap-2">
-                            <div className={`p-2 rounded-lg ${comparison.bgColor} group-hover:scale-110 transition-transform`}>
-                              <MetricIcon className={`w-4 h-4 ${comparison.color}`} />
+                            <div className={`p-2 rounded-lg ${comparison.bgColor} transition-all duration-500 group-hover:scale-125 group-hover:rotate-6 group-hover:shadow-lg`}>
+                              <MetricIcon className={`w-4 h-4 ${comparison.color} transition-transform duration-500 group-hover:scale-110`} />
                             </div>
                             <div>
-                              <CardTitle className="text-base">{metric.parameter}</CardTitle>
-                              <CardDescription className="text-xs">{metric.description}</CardDescription>
+                              <CardTitle className="text-base transition-colors duration-300 group-hover:text-foreground">{metric.parameter}</CardTitle>
+                              <CardDescription className="text-xs transition-colors duration-300 group-hover:text-foreground/80">{metric.description}</CardDescription>
                             </div>
                           </div>
                         </div>
-                        <Badge variant="outline" className={`${getCategoryStyle(metric.category)} border text-[10px] uppercase mt-2 w-fit`}>
+                        <Badge variant="outline" className={`${getCategoryStyle(metric.category)} border text-[10px] uppercase mt-2 w-fit transition-all duration-300 group-hover:scale-105`}>
                           {metric.category}
                         </Badge>
                       </CardHeader>
-                      <CardContent className="relative space-y-4">
+                      <CardContent className="relative space-y-4 z-10">
                         {/* Values */}
                         <div className="grid grid-cols-2 gap-3">
-                          <div className="p-3 rounded-lg bg-muted/30 border border-border/30">
-                            <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Actual</p>
-                            <p className="text-xl font-bold text-foreground">
+                          <div className="p-3 rounded-lg bg-muted/30 border border-border/30 transition-all duration-300 group-hover:bg-muted/50 group-hover:border-border/50 group-hover:scale-105">
+                            <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1 transition-colors duration-300 group-hover:text-foreground/70">Actual</p>
+                            <p className="text-xl font-bold text-foreground transition-all duration-300 group-hover:scale-110">
                               {metric.actual}
-                              <span className="text-xs text-muted-foreground ml-1">{metric.unit}</span>
+                              <span className="text-xs text-muted-foreground ml-1 transition-colors duration-300 group-hover:text-foreground/60">{metric.unit}</span>
                             </p>
                           </div>
-                          <div className="p-3 rounded-lg bg-primary/5 border border-primary/20">
-                            <p className="text-[10px] uppercase tracking-wider text-primary/70 mb-1">Ideal</p>
-                            <p className="text-xl font-bold text-primary">
+                          <div className="p-3 rounded-lg bg-primary/5 border border-primary/20 transition-all duration-300 group-hover:bg-primary/10 group-hover:border-primary/40 group-hover:scale-105">
+                            <p className="text-[10px] uppercase tracking-wider text-primary/70 mb-1 transition-colors duration-300 group-hover:text-primary">Ideal</p>
+                            <p className="text-xl font-bold text-primary transition-all duration-300 group-hover:scale-110 group-hover:drop-shadow-lg">
                               {metric.ideal}
-                              <span className="text-xs text-primary/70 ml-1">{metric.unit}</span>
+                              <span className="text-xs text-primary/70 ml-1 transition-colors duration-300 group-hover:text-primary">{metric.unit}</span>
                             </p>
                           </div>
                         </div>
@@ -1601,14 +1604,14 @@ const Comparison = () => {
                         {/* Progress */}
                         <div>
                           <div className="flex justify-between text-xs mb-2">
-                            <span className="text-muted-foreground">Progress to Ideal</span>
-                            <span className={`font-semibold ${comparison.color}`}>
+                            <span className="text-muted-foreground transition-colors duration-300 group-hover:text-foreground/80">Progress to Ideal</span>
+                            <span className={`font-semibold ${comparison.color} transition-all duration-300 group-hover:scale-110`}>
                               {parseFloat(deviation) > 0 ? '+' : ''}{deviation}%
                             </span>
                           </div>
-                          <div className="h-2 rounded-full bg-muted overflow-hidden">
+                          <div className="h-2 rounded-full bg-muted overflow-hidden group-hover:h-2.5 transition-all duration-300">
                             <div 
-                              className="h-full rounded-full bg-gradient-to-r from-primary to-primary/70 transition-all duration-700"
+                              className="h-full rounded-full bg-gradient-to-r from-primary to-primary/70 transition-all duration-700 group-hover:from-primary group-hover:to-primary/90"
                               style={{ width: `${Math.min(progressPercent, 100)}%` }}
                             />
                           </div>
@@ -1616,12 +1619,15 @@ const Comparison = () => {
 
                         {/* Status */}
                         <div className="flex items-center justify-between pt-2 border-t border-border/30">
-                          <span className="text-xs text-muted-foreground">{metric.relatedTo}</span>
-                          <Badge className={`${comparison.bgColor} ${comparison.color} border-0 text-xs`}>
+                          <span className="text-xs text-muted-foreground transition-colors duration-300 group-hover:text-foreground/70">{metric.relatedTo}</span>
+                          <Badge className={`${comparison.bgColor} ${comparison.color} border-0 text-xs transition-all duration-300 group-hover:scale-110 group-hover:shadow-md`}>
                             {comparison.status === 'optimal' ? 'Optimal' : comparison.status === 'above' ? 'Above' : comparison.status === 'below' ? 'Below' : 'N/A'}
                           </Badge>
                         </div>
                       </CardContent>
+
+                      {/* Border glow effect on hover */}
+                      <div className={`absolute inset-0 rounded-lg border-2 ${comparison.borderColor} opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none`} />
                     </Card>
                   );
                 })}
@@ -1794,7 +1800,7 @@ const Comparison = () => {
                   </CardContent>
                 </Card>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {recommendations.map((rec, index) => {
                     const Icon = rec.icon;
                     const priorityStyles = {
@@ -1807,33 +1813,43 @@ const Comparison = () => {
                     return (
                       <Card 
                         key={index}
-                        className={`insight-card group border ${style.border} bg-card/80 backdrop-blur-sm overflow-hidden hover:shadow-lg transition-all duration-300`}
+                        className={`insight-card group relative border ${style.border} bg-card/80 backdrop-blur-sm overflow-hidden transition-all duration-500 ease-out hover:shadow-2xl hover:shadow-primary/20 hover:-translate-y-2 hover:scale-[1.02] cursor-pointer`}
                       >
-                        <div className={`absolute inset-0 ${style.bg} opacity-30`} />
-                        <CardHeader className="relative pb-3">
+                        {/* Animated background gradient on hover */}
+                        <div className={`absolute inset-0 ${style.bg} opacity-30 transition-opacity duration-500 group-hover:opacity-50`} />
+                        
+                        {/* Shine effect on hover */}
+                        <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+                          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-in-out" />
+                        </div>
+
+                        <CardHeader className="relative pb-3 z-10">
                           <div className="flex items-start justify-between gap-4">
                             <div className="flex items-start gap-3">
-                              <div className={`p-2.5 rounded-xl ${style.bg} group-hover:scale-110 transition-transform`}>
-                                <Icon className={`w-5 h-5 ${style.text}`} />
+                              <div className={`p-2.5 rounded-xl ${style.bg} transition-all duration-500 group-hover:scale-125 group-hover:rotate-6 group-hover:shadow-lg`}>
+                                <Icon className={`w-5 h-5 ${style.text} transition-transform duration-500 group-hover:scale-110`} />
                               </div>
                               <div className="flex-1">
-                                <CardTitle className="text-base leading-tight">{rec.title}</CardTitle>
-                                <Badge className={`${style.badge} border-0 text-[10px] uppercase mt-2`}>
+                                <CardTitle className="text-base leading-tight transition-colors duration-300 group-hover:text-foreground">{rec.title}</CardTitle>
+                                <Badge className={`${style.badge} border-0 text-[10px] uppercase mt-2 transition-all duration-300 group-hover:scale-105`}>
                                   {rec.priority} Priority
                                 </Badge>
                               </div>
                             </div>
                             <div className="text-right shrink-0">
-                              <div className={`text-2xl font-bold ${style.text}`}>{rec.impact}</div>
-                              <div className="text-xs text-muted-foreground">{rec.impactLabel}</div>
+                              <div className={`text-2xl font-bold ${style.text} transition-all duration-500 group-hover:scale-110 group-hover:drop-shadow-lg`}>{rec.impact}</div>
+                              <div className="text-xs text-muted-foreground transition-colors duration-300 group-hover:text-foreground/70">{rec.impactLabel}</div>
                             </div>
                           </div>
                         </CardHeader>
-                        <CardContent className="relative">
-                          <p className="text-sm text-muted-foreground leading-relaxed">
+                        <CardContent className="relative z-10">
+                          <p className="text-sm text-muted-foreground leading-relaxed transition-colors duration-300 group-hover:text-foreground/90">
                             {rec.description}
                           </p>
                         </CardContent>
+
+                        {/* Border glow effect on hover */}
+                        <div className={`absolute inset-0 rounded-lg border-2 ${style.border} opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none`} />
                       </Card>
                     );
                   })}
@@ -1908,7 +1924,6 @@ const Comparison = () => {
             </Card>
           </TabsContent>
         </Tabs>
-        )}
       </div>
     </div>
   );
