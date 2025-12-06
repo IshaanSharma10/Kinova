@@ -185,56 +185,66 @@ const Comparison = () => {
   useEffect(() => {
     document.title = 'Biomechanical Comparison | Kinova';
 
-    // Only run animations after data is loaded
-    if (!loading && gaitData) {
-      const ctx = gsap.context(() => {
-        gsap.from(headerRef.current, {
-          y: -30,
-          opacity: 0,
-          duration: 0.6,
-          ease: 'power3.out'
-        });
+    let ctx: gsap.Context | null = null;
 
-        gsap.from('.hero-stat', {
-          scale: 0.8,
-          opacity: 0,
-          duration: 0.5,
-          stagger: 0.1,
-          delay: 0.2,
-          ease: 'back.out(1.5)'
-        });
+    // Use a timeout to ensure DOM is ready
+    const timer = setTimeout(() => {
+      if (!loading) {
+        ctx = gsap.context(() => {
+          // Animate header
+          if (headerRef.current) {
+            gsap.fromTo(headerRef.current, 
+              { y: -30, opacity: 0 },
+              { y: 0, opacity: 1, duration: 0.6, ease: 'power3.out' }
+            );
+          }
 
-        gsap.from('.main-card', {
-          y: 40,
-          opacity: 0,
-          duration: 0.7,
-          stagger: 0.15,
-          delay: 0.4,
-          ease: 'power3.out'
-        });
+          // Animate hero stats
+          const heroStats = document.querySelectorAll('.hero-stat');
+          if (heroStats.length > 0) {
+            gsap.fromTo(heroStats,
+              { scale: 0.8, opacity: 0 },
+              { scale: 1, opacity: 1, duration: 0.5, stagger: 0.1, delay: 0.2, ease: 'back.out(1.5)' }
+            );
+          }
 
-        gsap.from('.metric-item', {
-          x: -20,
-          opacity: 0,
-          duration: 0.4,
-          stagger: 0.05,
-          delay: 0.6,
-          ease: 'power2.out'
-        });
+          // Animate main cards
+          const mainCards = document.querySelectorAll('.main-card');
+          if (mainCards.length > 0) {
+            gsap.fromTo(mainCards,
+              { y: 40, opacity: 0 },
+              { y: 0, opacity: 1, duration: 0.7, stagger: 0.15, delay: 0.4, ease: 'power3.out' }
+            );
+          }
 
-        gsap.from('.insight-card', {
-          y: 20,
-          opacity: 0,
-          duration: 0.5,
-          stagger: 0.08,
-          delay: 0.8,
-          ease: 'power2.out'
-        });
-      });
+          // Animate metric items
+          const metricItems = document.querySelectorAll('.metric-item');
+          if (metricItems.length > 0) {
+            gsap.fromTo(metricItems,
+              { x: -20, opacity: 0 },
+              { x: 0, opacity: 1, duration: 0.4, stagger: 0.05, delay: 0.6, ease: 'power2.out' }
+            );
+          }
 
-      return () => ctx.revert();
-    }
-  }, [loading, gaitData]);
+          // Animate insight cards
+          const insightCards = document.querySelectorAll('.insight-card');
+          if (insightCards.length > 0) {
+            gsap.fromTo(insightCards,
+              { y: 20, opacity: 0 },
+              { y: 0, opacity: 1, duration: 0.5, stagger: 0.08, delay: 0.8, ease: 'power2.out' }
+            );
+          }
+        });
+      }
+    }, 100);
+
+    return () => {
+      clearTimeout(timer);
+      if (ctx) {
+        ctx.revert();
+      }
+    };
+  }, [loading, activeTab]);
 
   // Format value with proper null checking
   const formatValue = (value: number | undefined, decimals: number = 2): number => {
@@ -1320,7 +1330,6 @@ const Comparison = () => {
         </div>
 
         {/* Main Content with Tabs - Always show, uses default profile if not set */}
-        (
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="w-full sm:w-auto bg-card border border-border p-1.5 rounded-xl shadow-lg">
             <TabsTrigger 

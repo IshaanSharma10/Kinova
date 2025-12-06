@@ -36,10 +36,10 @@ const sensors = [
   { name: 'Equilibrium', active: true },
   { name: 'Postural Sway', active: true },
   { name: 'Cadence', active: true },
-  { name: 'Frequency', active: false },
+  { name: 'Frequency', active: true },
   { name: 'Step Width', active: true },
   { name: 'Stride Length', active: true },
-  { name: 'Walking Speed', active: false },
+  { name: 'Walking Speed', active: true },
   { name: 'Phase Mean', active: true },
 ];
 

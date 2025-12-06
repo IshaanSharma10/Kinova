@@ -123,22 +123,22 @@ export default function Dashboard() {
       title: "Steps",
       value: formatValue(latestGaitEntry.steps, 0),
       unit: "steps",
-      status: "LIVE",
+      
       icon: iconMap.stepWidth,
       color: "purple" as const,
     },
     {
       title: "Equilibrium",
       value: formatValue(latestGaitEntry.equilibriumScore, 6),
-      status: "Excellent",
+      
       icon: iconMap.equilibrium,
       color: "success" as const,
     },
     {
       title: "Postural Sway",
       value: formatValue(latestGaitEntry.posturalSway, 6),
-      unit: "mm",
-      status: "Normal",
+      unit: "deg",
+      
       icon: iconMap.posturalSway,
       color: "primary" as const,
     },
@@ -146,7 +146,7 @@ export default function Dashboard() {
       title: "Cadence",
       value: formatValue(latestGaitEntry.cadence, 5),
       unit: "steps/min",
-      status: "Optimal",
+     
       icon: iconMap.cadence,
       color: "success" as const,
     },
@@ -154,7 +154,7 @@ export default function Dashboard() {
       title: "Frequency",
       value: formatValue(latestGaitEntry.frequency, 6),
       unit: "Hz",
-      status: "Normal",
+      
       icon: iconMap.frequency,
       color: "warning" as const,
     },
@@ -162,7 +162,7 @@ export default function Dashboard() {
       title: "Knee Force",
       value: formatValue(latestGaitEntry.kneeForce, 6),
       unit: "N",
-      status: "Good",
+     
       icon: iconMap.kneeForce,
       color: "success" as const,
     },
@@ -170,7 +170,7 @@ export default function Dashboard() {
       title: "Walking Speed",
       value: formatValue(latestGaitEntry.walkingSpeed, 6),
       unit: "m/s",
-      status: "Average",
+      
       icon: iconMap.walkingSpeed,
       color: "warning" as const,
     },
@@ -178,7 +178,7 @@ export default function Dashboard() {
       title: "Step Width",
       value: formatValue(latestGaitEntry.stepWidth, 6),
       unit: "m",
-      status: "Balanced",
+     
       icon: iconMap.stepWidth,
       color: "purple" as const,
     },
