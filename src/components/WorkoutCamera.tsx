@@ -47,20 +47,38 @@ export default function WorkoutCamera({ exercise }: WorkoutCameraProps) {
 
     if (!blob) return;
 
-    // Prepare payload
+    // Prepare payload - match backend endpoint format
     const form = new FormData();
     form.append("file", blob, "frame.jpg");
-    form.append("exercise", exercise);
+    // Backend expects "workout_type" not "exercise", and needs plural form
+    const workoutTypeMap: Record<ExerciseType, string> = {
+      lunge: "lunges",
+      pushup: "pushups",
+      squat: "squats"
+    };
+    form.append("workout_type", workoutTypeMap[exercise]);
 
     try {
-      const response = await fetch("/api/process", {
+      const response = await fetch("/api/process-frame", {
         method: "POST",
         body: form,
       });
 
-      const imageBlob = await response.blob();
-      const url = URL.createObjectURL(imageBlob);
-      setProcessedUrl(url);
+      if (!response.ok) {
+        throw new Error(`Backend error: ${response.status}`);
+      }
+
+      // Backend returns JSON with hex-encoded frame, not image blob
+      const result = await response.json();
+      
+      // Convert hex string back to image
+      if (result.frame) {
+        const hexString = result.frame;
+        const bytes = new Uint8Array(hexString.match(/.{1,2}/g)!.map(byte => parseInt(byte, 16)));
+        const imageBlob = new Blob([bytes], { type: 'image/jpeg' });
+        const url = URL.createObjectURL(imageBlob);
+        setProcessedUrl(url);
+      }
     } catch (err) {
       console.error("Error sending frame:", err);
     }

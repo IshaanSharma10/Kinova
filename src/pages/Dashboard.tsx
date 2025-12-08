@@ -105,6 +105,7 @@ export default function Dashboard() {
     stepWidth: <Footprints className="h-5 w-5" />,
     kneeForce: <Weight className="h-5 w-5" />,
     walkingSpeed: <TrendingUp className="h-5 w-5" />,
+    gaitSymmetry: <Target className="h-5 w-5" />,
   };
 
   // Format with proper null checking
@@ -175,12 +176,12 @@ export default function Dashboard() {
       color: "warning" as const,
     },
     {
-      title: "Step Width",
-      value: formatValue(latestGaitEntry.stepWidth, 6),
-      unit: "m",
+      title: "Gait Symmetry",
+      value: formatValue(latestGaitEntry.gaitSymmetry, 2),
+      unit: "%",
      
-      icon: iconMap.stepWidth,
-      color: "purple" as const,
+      icon: iconMap.gaitSymmetry,
+      color: "primary" as const,
     },
   ];
 

@@ -3,10 +3,13 @@ import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
 
+// Backend proxy configuration
+// For local development: use http://localhost:8000
+// For production: change to your deployed backend URL
 const apiProxy: ProxyOptions = {
-  target: "https://internal-backend-1ju5.onrender.com",
+  target: "http://localhost:8000", // Change this to your backend URL if needed
   changeOrigin: true,
-  secure: true,
+  secure: false,
   rewrite: (path) => path.replace(/^\/api/, ""),
 };
 

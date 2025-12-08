@@ -16,6 +16,7 @@ export interface GaitDataEntry {
   cadence?: number;
   equilibriumScore?: number;
   frequency?: number;
+  gaitSymmetry?: number;
   kneeForce?: number;
   posturalSway?: number;
   stepWidth?: number;

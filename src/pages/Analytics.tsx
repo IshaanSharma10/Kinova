@@ -6,7 +6,6 @@ import { MetricCard } from '@/components/ui/metric-card';
 import { 
   BarChart3, 
   Calendar, 
-  Download,
   Target,
   Activity,
   Timer,
@@ -210,17 +209,11 @@ export default function Analytics() {
                 <SelectItem value="7days">Last 7 days</SelectItem>
               </SelectContent>
             </Select>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" className="flex-1 sm:flex-none">
-                <Calendar className="w-4 h-4 mr-1 sm:mr-2" />
-                <span className="hidden sm:inline">Custom Range</span>
-                <span className="sm:hidden">Range</span>
-              </Button>
-              <Button size="sm" className="flex-1 sm:flex-none">
-                <Download className="w-4 h-4 mr-1 sm:mr-2" />
-                <span className="hidden sm:inline">Export</span>
-              </Button>
-            </div>
+            <Button variant="outline" size="sm" className="flex-1 sm:flex-none">
+              <Calendar className="w-4 h-4 mr-1 sm:mr-2" />
+              <span className="hidden sm:inline">Custom Range</span>
+              <span className="sm:hidden">Range</span>
+            </Button>
           </div>
         </div>
 

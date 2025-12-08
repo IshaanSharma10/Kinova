@@ -6,6 +6,7 @@ export interface GaitDataEntry {
   cadence?: number;
   equilibriumScore?: number;
   frequency?: number;
+  gaitSymmetry?: number;
   kneeForce?: number;
   posturalSway?: number;
   stepWidth?: number;
@@ -86,6 +87,7 @@ export const useGaitMetrics = (): GaitMetricsState => {
             cadence: entry.cadence,
             equilibriumScore: entry.equilibriumScore,
             frequency: entry.frequency,
+            gaitSymmetry: entry.gaitSymmetry,
             kneeForce: entry.kneeForce,
             posturalSway: entry.posturalSway,
             stepWidth: entry.stepWidth,

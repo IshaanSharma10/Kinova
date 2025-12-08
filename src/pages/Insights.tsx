@@ -8,7 +8,6 @@ import {
   AlertTriangle,
   CheckCircle,
   Brain,
-  Download,
   Activity,
   Footprints,
 } from 'lucide-react';
@@ -343,13 +342,6 @@ const chartData = localScores.map((score, i) => ({
             <p className="text-muted-foreground mt-1 sm:mt-2 text-sm sm:text-base">
               AI-powered gait analysis and personalized recommendations
             </p>
-          </div>
-          <div className="flex gap-2 sm:gap-3">
-            <Button size="sm" className="flex-1 sm:flex-none">
-              <Download className="w-4 h-4 mr-1 sm:mr-2" />
-              <span className="hidden sm:inline">Export Report</span>
-              <span className="sm:hidden">Export</span>
-            </Button>
           </div>
         </div>
 
