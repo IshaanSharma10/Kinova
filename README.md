@@ -1,14 +1,27 @@
 <div align="center">
 
-# 🦿 KINOVA
+<table>
+<tr>
+<td align="center"><img src="docs/assets/biomech-titans-logo.png" alt="Biomech Titans Logo" width="100"/></td>
+<td align="center">
 
+# 🦿 KINOVA
 ### AI-Powered Gait Analysis & Rehabilitation Platform
+**Gait Intelligence for Atmanirbhar Bharat**
+
+</td>
+<td align="center"><img src="docs/assets/sih-logo.png" alt="Smart India Hackathon 2025" width="100"/></td>
+</tr>
+</table>
+
+**By Team BIOMECH TITANS** | 🇮🇳 **Smart India Hackathon 2025**
 
 [![React](https://img.shields.io/badge/React-18.3-61DAFB?style=for-the-badge&logo=react&logoColor=white)](https://reactjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.5-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Firebase](https://img.shields.io/badge/Firebase-Realtime-FFCA28?style=for-the-badge&logo=firebase&logoColor=black)](https://firebase.google.com/)
 [![TailwindCSS](https://img.shields.io/badge/Tailwind-3.4-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
 [![Python](https://img.shields.io/badge/Python-FastAPI-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://fastapi.tiangolo.com/)
+[![Made in India](https://img.shields.io/badge/Made%20in-India-FF9933?style=for-the-badge&logo=india&logoColor=white)]()
 
 <br/>
 
@@ -24,28 +37,41 @@
 
 ---
 
-## 🎯 The Problem We're Solving
+## 🎯 Motivation: Gait Intelligence for Atmanirbhar Bharat
+
+<div align="center">
+
+*Addressing Critical Gaps in India's Mobility and Gait Care*
+
+</div>
 
 <table>
 <tr>
-<td width="50%">
+<td width="33%" align="center">
 
-### Global Impact
+### 🏃 01. Risks for Young Athletes
 
-- **1 in 3** adults over 65 experience gait disorders
-- **$50B+** annual healthcare costs from fall-related injuries
-- **80%** of gait abnormalities go undetected until injury
-- **6-month** average wait time for specialist assessments
+<img src="docs/assets/athlete-icon.png" width="50"/>
+
+*"Junior district and state athletes rarely have access to scientific gait analysis, so **asymmetries and overuse injuries stay hidden** until performance drops."*
 
 </td>
-<td width="50%">
+<td width="33%" align="center">
 
-### Current Limitations
+### 👴 02. Hidden Toll of Senior Falls
 
-- ❌ Expensive lab-based motion capture ($50K+ equipment)
-- ❌ Subjective visual assessments prone to error
-- ❌ No continuous monitoring between clinic visits
-- ❌ Limited accessibility in rural/underserved areas
+<img src="docs/assets/elderly-fall-icon.png" width="50"/>
+
+*"Each year, **31% of Indian elderly** suffer at least one fall, with **two-thirds leading to injury**. The impact: thousands of crores in medical bills and lifelong disability."*
+
+</td>
+<td width="33%" align="center">
+
+### 🏥 03. Gait Labs: High Cost, Low Reach
+
+<img src="docs/assets/hospital-icon.png" width="50"/>
+
+*"Gold-standard gait labs cost **₹2-4 crore each**. Fewer than **20 such facilities** exist nationwide—reserved for elite athletes and urban hospitals."*
 
 </td>
 </tr>
@@ -53,15 +79,139 @@
 
 ---
 
-## 💡 Our Solution
+## 🌍 Real-World Applications
 
-**Kinova** democratizes clinical-grade gait analysis by combining **IoT sensor fusion**, **real-time biomechanical modeling**, and **machine learning** to deliver:
+<table>
+<tr>
+<td width="50%" align="center">
+
+### 🏃 Sports Performance & Screening
+
+<img src="docs/assets/sports-icon.png" width="60"/>
+
+District and state academies can use our gait radar to **screen budding athletes for asymmetries and overuse patterns** before they turn into injuries.
+
+**Target Users:** Sports academies, talent scouts, coaches
+
+</td>
+<td width="50%" align="center">
+
+### 🏥 Injury Rehab & Return-to-Play
+
+<img src="docs/assets/rehab-icon.png" width="60"/>
+
+Physiotherapists and sports medicine clinics can track gait score, balance and knee loading to **plan rehab and decide safe return-to-sport**.
+
+**Target Users:** Physiotherapists, sports medicine clinics
+
+</td>
+</tr>
+<tr>
+<td width="50%" align="center">
+
+### 👴 Mobility & Fall-Risk Monitoring
+
+<img src="docs/assets/elderly-icon.png" width="60"/>
+
+Continuous gait and balance tracking to **flag high fall-risk seniors early** and guide targeted rehab or exercise plans.
+
+**Target Users:** Elderly care facilities, geriatric clinics
+
+</td>
+<td width="50%" align="center">
+
+### 🧳 Portable Field-Side Gait Labs
+
+<img src="docs/assets/portable-icon.png" width="60"/>
+
+Portable, low-cost kit turns any academy, coaching centre or small clinic into a **mini gait lab, delivering lab-grade analytics at the ground level**.
+
+**Target Users:** Rural clinics, coaching centers, schools
+
+</td>
+</tr>
+</table>
+
+---
+
+## 💡 Our Solution: Made-in-India Gait Intelligence Stack
 
 <div align="center">
 
-| 🔬 **Clinical Accuracy** | ⚡ **Real-Time Analysis** | 🌍 **Accessible Anywhere** |
+**KINOVA** delivers a complete, affordable, indigenous gait analysis ecosystem
+
+</div>
+
+<table>
+<tr>
+<td width="20%" align="center">
+
+### 📡
+**Full-Body Motion & Pressure Capture**
+
+IMU + FSR sensors capture **6-axis movement** and **foot loading**
+
+</td>
+<td width="20%" align="center">
+
+### 📊
+**BMI-Aware Gait Radar**
+
+Uses height and weight to create a **personalised gait baseline**
+
+</td>
+<td width="20%" align="center">
+
+### 🤖
+**Real-Time AI Gait Scoring**
+
+ML fuses IMU & FSR data to **score gait** and **flag asymmetry**
+
+</td>
+<td width="20%" align="center">
+
+### 📈
+**Insightful Dashboards & Reports**
+
+App/web dashboards show **trends, reports and progress**
+
+</td>
+<td width="20%" align="center">
+
+### 🎯
+**Interactive Coach & Form Analysis**
+
+Chatbot + vision module **correct squats and lunges**
+
+</td>
+</tr>
+</table>
+
+<div align="center">
+
+| 🔬 **Clinical Accuracy** | ⚡ **Real-Time Analysis** | 🇮🇳 **Made in India** |
 |:---:|:---:|:---:|
-| Research-validated algorithms with 94.7% accuracy against gold-standard motion capture | Sub-100ms latency from sensor to actionable insight | Browser-based platform works on any device with internet |
+| Research-validated algorithms with 94.7% accuracy | Sub-100ms latency from sensor to insight | Affordable alternative to ₹2-4 crore gait labs |
+
+</div>
+
+---
+
+## 📋 Gait Parameters We Analyze
+
+<div align="center">
+
+| Parameter | What It Measures | Why It Matters |
+|-----------|------------------|----------------|
+| **Cadence** | Steps/min | Shows fatigue/mobility decline |
+| **Equilibrium Score** | Balance (0-1) | <0.5 = high fall risk |
+| **Frequency** | Rhythm consistency | Irregular = coordination issues |
+| **Knee Force** | Knee joint loading | High load = injury risk |
+| **Postural Sway** | Body movement | >3.0 = fall/instability risk |
+| **Step Width** | Foot spacing | Wide = balance compensation |
+| **Stride Length** | Two-step distance | Short = weakness/stiffness |
+| **Walking Speed** | Pace (m/s) | <1.0 = mobility impairment |
+| **Foot Pressure** | Left/Right distribution | Asymmetry = injury risk |
 
 </div>
 
@@ -128,31 +278,96 @@
 ## 🏗 System Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                              KINOVA PLATFORM                                 │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐  │
-│  │   Sensors   │───▶│  Firebase   │───▶│   React     │───▶│    User     │  │
-│  │  (IoT/IMU)  │    │  Realtime   │    │  Frontend   │    │  Interface  │  │
-│  └─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘  │
-│         │                  │                  │                  │          │
-│         │                  │                  │                  │          │
-│         ▼                  ▼                  ▼                  ▼          │
-│  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐  │
-│  │  Pressure   │    │     ML      │    │   FastAPI   │    │    Voice    │  │
-│  │   Sensors   │    │  Pipeline   │    │   Backend   │    │   Engine    │  │
-│  └─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘  │
-│                                                                              │
-└─────────────────────────────────────────────────────────────────────────────┘
+╔═══════════════════════════════════════════════════════════════════════════════════════╗
+║                           BIOMECH TITANS - TECHNICAL APPROACH                          ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║                                                                                        ║
+║  ┌─────────────────────┐   ┌─────────────────────┐   ┌─────────────────────────────┐  ║
+║  │  1. SENSOR LAYOUT   │   │   2. SENSORS USED   │   │      3. SOFTWARE STACK      │  ║
+║  └─────────────────────┘   └─────────────────────┘   └─────────────────────────────┘  ║
+║                                                                                        ║
+║       ┌──────────┐          ┌─────────────────┐              ┌──────────┐             ║
+║       │   Neck   │          │ Accelerometers  │              │  Cloud   │             ║
+║       └────┬─────┘          │   (MPU6050)     │              │ Database │             ║
+║            │                └────────┬────────┘              └────┬─────┘             ║
+║       ┌────┴─────┐                   │                            │                   ║
+║       │    CG    │          ┌────────┴────────┐         ┌────────┴────────┐          ║
+║       │ (Center) │          │ Pressure Insoles│         │                  │          ║
+║       └────┬─────┘          │   (FSR 402)     │         ▼                  ▼          ║
+║            │                └────────┬────────┘    ┌─────────┐      ┌──────────┐     ║
+║    ┌───────┼───────┐                 │             │ Mobile  │      │  Web App │     ║
+║    │       │       │        ┌────────┴────────┐    │   App   │      │ (React)  │     ║
+║    ▼       ▼       ▼        │   Gyroscopes    │    └────┬────┘      └────┬─────┘     ║
+║ ┌──────┐┌──────┐┌──────┐    │   (MPU6050)     │         │                │           ║
+║ │Fore- ││Knees ││Ankles│    └────────┬────────┘         └───────┬────────┘           ║
+║ │arms  ││      ││      │             │                          │                    ║
+║ └──────┘└──────┘└──────┘             ▼                          ▼                    ║
+║                            ┌─────────────────┐          ┌───────────────┐            ║
+║    6 Sensor Nodes          │     Slave       │          │  ML Pipeline  │            ║
+║    on Athlete Body         │ Microcontroller │          │   (Python)    │            ║
+║                            │   (ESP32/STM32) │          └───────┬───────┘            ║
+║                            └────────┬────────┘                  │                    ║
+║                                     │ TCP/WiFi                  ▼                    ║
+║                                     ▼                   ┌───────────────┐            ║
+║                            ┌─────────────────┐          │ML Predictions │            ║
+║                            │     Master      │          │ • Gait Score  │            ║
+║                            │ Microcontroller │──────────│ • Fall Risk   │            ║
+║                            │     (ESP32)     │          │ • Anomalies   │            ║
+║                            └─────────────────┘          └───────────────┘            ║
+║                                                                                       ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║                                    📊 OUTPUTS                                         ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║                                                                                        ║
+║   ┌────────────────┐  ┌────────────────┐  ┌────────────────┐  ┌────────────────┐     ║
+║   │     Gait       │  │   AI-Based     │  │  BMI-Based     │  │      3D        │     ║
+║   │   Parameters   │  │  Gait Score    │  │  Comparison    │  │ Visualizations │     ║
+║   │                │  │                │  │                │  │                │     ║
+║   │ • Cadence      │  │  0-100 Score   │  │ Actual vs      │  │ Real-time      │     ║
+║   │ • Stride       │  │  with clinical │  │ Optimal radar  │  │ skeletal       │     ║
+║   │ • Equilibrium  │  │  thresholds    │  │ charts         │  │ animation      │     ║
+║   │ • Sway         │  │                │  │                │  │                │     ║
+║   └────────────────┘  └────────────────┘  └────────────────┘  └────────────────┘     ║
+║                                                                                        ║
+╚═══════════════════════════════════════════════════════════════════════════════════════╝
 ```
 
-### Data Flow
+### Hardware Components
 
-1. **Sensor Layer** — IMU sensors capture acceleration, gyroscope, and pressure data at 100Hz
-2. **Cloud Layer** — Firebase Realtime Database provides <50ms sync across devices
-3. **Processing Layer** — Python backend handles ML inference and pose estimation
-4. **Presentation Layer** — React frontend delivers rich, interactive visualizations
+| Component | Model | Placement | Function |
+|-----------|-------|-----------|----------|
+| **Accelerometer** | MPU6050 | All 6 nodes | Measures linear acceleration (X, Y, Z) |
+| **Gyroscope** | MPU6050 | All 6 nodes | Measures angular velocity & orientation |
+| **Pressure Insoles** | FSR 402 | Both feet | Measures foot pressure distribution |
+| **Slave MCU** | ESP32/STM32 | On body | Collects data from 3 sensor nodes each |
+| **Master MCU** | ESP32 | Waist belt | Aggregates data, WiFi transmission |
+
+### Data Flow Pipeline
+
+```
+┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+│   COLLECT    │───▶│   TRANSMIT   │───▶│   PROCESS    │───▶│   DISPLAY    │
+│              │    │              │    │              │    │              │
+│ 6 IMU Nodes  │    │ TCP/IP over  │    │ Firebase +   │    │ Web & Mobile │
+│ @ 100Hz      │    │ WiFi to      │    │ ML Pipeline  │    │ Real-time    │
+│              │    │ Cloud DB     │    │ Inference    │    │ Dashboard    │
+└──────────────┘    └──────────────┘    └──────────────┘    └──────────────┘
+      │                    │                   │                   │
+      ▼                    ▼                   ▼                   ▼
+ Raw sensor data    <50ms latency      Gait scoring &      Interactive 3D
+ from athlete       to Firebase        classification       visualization
+```
+
+### Sensor Placement Strategy
+
+| Location | Purpose | Parameters Captured |
+|----------|---------|---------------------|
+| **Neck** | Upper body posture | Head tilt, neck angle |
+| **Center of Gravity** | Core stability | Balance, trunk rotation |
+| **Forearms** | Arm swing analysis | Symmetry, coordination |
+| **Knees** | Lower limb mechanics | Knee flexion, impact force |
+| **Ankles** | Gait cycle timing | Stride, cadence, foot clearance |
+| **Foot Insoles** | Ground contact | Pressure distribution (L/R) |
 
 ---
 
@@ -160,9 +375,9 @@
 
 <table>
 <tr>
-<td valign="top" width="33%">
+<td valign="top" width="25%">
 
-### Frontend
+### 🖥️ Frontend
 - React 18.3 + TypeScript
 - Vite (Build Tool)
 - TailwindCSS + shadcn/ui
@@ -172,28 +387,156 @@
 - Web Speech API
 
 </td>
-<td valign="top" width="33%">
+<td valign="top" width="25%">
 
-### Backend
+### ⚙️ Backend
 - Python 3.11+
 - FastAPI + Uvicorn
 - MediaPipe (Pose)
 - OpenCV
-- NumPy
+- NumPy / Pandas
+- Scikit-learn
 
 </td>
-<td valign="top" width="33%">
+<td valign="top" width="25%">
 
-### Infrastructure
+### 🔧 Hardware
+- ESP32 Microcontrollers
+- MPU6050 IMU Sensors
+- FSR 402 Pressure Sensors
+- Custom PCB Design
+- LiPo Battery Pack
+- WiFi Communication
+
+</td>
+<td valign="top" width="25%">
+
+### ☁️ Infrastructure
 - Firebase Realtime DB
 - Firebase Authentication
 - Vercel (Frontend)
 - Docker Support
-- GitHub Actions CI/CD
+- TCP/IP Protocol
 
 </td>
 </tr>
 </table>
+
+---
+
+## 📁 Project Structure
+
+```
+kinova/
+├── 📂 src/                          # Frontend source code
+│   ├── 📂 components/               # React components
+│   │   ├── 📂 ui/                   # Reusable UI components (shadcn/ui)
+│   │   │   ├── button.tsx
+│   │   │   ├── card.tsx
+│   │   │   ├── metric-card.tsx      # Custom gait metric cards
+│   │   │   ├── notifications.tsx    # Real-time notifications
+│   │   │   ├── search.tsx           # Global search functionality
+│   │   │   ├── sidebar.tsx
+│   │   │   └── ...                  # 50+ UI components
+│   │   ├── 📂 layout/
+│   │   │   └── MainLayout.tsx       # App layout wrapper
+│   │   ├── AppSidebar.tsx           # Navigation sidebar
+│   │   ├── Gait3DModel.tsx          # Three.js 3D visualization
+│   │   └── WorkoutCamera.tsx        # MediaPipe pose camera
+│   │
+│   ├── 📂 pages/                    # Route pages
+│   │   ├── Dashboard.tsx            # Main gait dashboard
+│   │   ├── Analytics.tsx            # Historical data & charts
+│   │   ├── Comparison.tsx           # Ideal vs actual comparison
+│   │   ├── Insights.tsx             # ML-powered insights
+│   │   ├── WorkoutTracker.tsx       # AI exercise counter
+│   │   ├── Chatbot.tsx              # Voice-enabled assistant
+│   │   ├── Profile.tsx              # User profile management
+│   │   ├── Settings.tsx             # App settings
+│   │   ├── SignIn.tsx               # Authentication
+│   │   ├── SignUp.tsx
+│   │   └── ForgotPassword.tsx
+│   │
+│   ├── 📂 hooks/                    # Custom React hooks
+│   │   ├── useGaitMetrics.ts        # Firebase realtime data hook
+│   │   ├── useMLInsightsFromFirebase.ts
+│   │   ├── useSpeechRecognition.ts  # Voice input hook
+│   │   └── use-mobile.tsx
+│   │
+│   ├── 📂 services/                 # API & external services
+│   │   ├── authService.ts           # Firebase auth wrapper
+│   │   ├── chatbotService.ts        # Chatbot API calls
+│   │   └── MlServices.ts            # ML inference services
+│   │
+│   ├── 📂 contexts/
+│   │   └── AuthContext.tsx          # Authentication state
+│   │
+│   ├── 📂 Firebase/
+│   │   └── ifreConfig.ts            # Firebase configuration
+│   │
+│   ├── 📂 utils/
+│   │   ├── gaitCategorization.ts    # Clinical threshold logic
+│   │   └── getGaitScore.ts          # Composite score calculation
+│   │
+│   ├── 📂 config/
+│   │   └── api.ts                   # API endpoint configuration
+│   │
+│   ├── 📂 lib/
+│   │   └── utils.ts                 # Utility functions
+│   │
+│   ├── App.tsx                      # Root component & routing
+│   ├── main.tsx                     # Entry point
+│   └── index.css                    # Global styles & Tailwind
+│
+├── 📂 backend/                      # Python FastAPI backend
+│   ├── 📂 counters/                 # Exercise counting logic
+│   │   ├── squat_counter.py         # Squat detection & counting
+│   │   ├── pushup_counter.py        # Pushup detection & counting
+│   │   └── lunge_counter.py         # Lunge detection & counting
+│   │
+│   ├── 📂 workers/                  # Background workers
+│   │   ├── squats.py
+│   │   ├── pushups.py
+│   │   └── lunges.py
+│   │
+│   ├── main.py                      # FastAPI application entry
+│   ├── inference_from_firebase.py   # ML inference pipeline
+│   ├── chatbot_openai.py            # OpenAI chatbot integration
+│   ├── chatbot_ollama.py            # Local Ollama integration
+│   ├── requirements.txt             # Python dependencies
+│   ├── Dockerfile                   # Container configuration
+│   ├── Procfile                     # Heroku deployment
+│   ├── render.yaml                  # Render deployment
+│   └── railway.json                 # Railway deployment
+│
+├── 📂 public/                       # Static assets
+│   ├── 📂 models/
+│   │   └── walk.glb                 # 3D walking animation model
+│   ├── human.glb                    # 3D human model
+│   ├── favicon.ico
+│   ├── logo.jpg
+│   └── manifest.json                # PWA manifest
+│
+├── 📂 docs/                         # Documentation
+│   └── 📂 assets/                   # README images
+│
+├── 📜 package.json                  # Node.js dependencies
+├── 📜 vite.config.ts                # Vite build configuration
+├── 📜 tailwind.config.ts            # Tailwind CSS config
+├── 📜 tsconfig.json                 # TypeScript configuration
+├── 📜 vercel.json                   # Vercel deployment config
+└── 📜 README.md                     # You are here! 👋
+```
+
+### Key Directories Explained
+
+| Directory | Purpose |
+|-----------|---------|
+| `src/components/ui/` | 50+ reusable UI components based on shadcn/ui |
+| `src/pages/` | All route-level page components |
+| `src/hooks/` | Custom hooks for data fetching & state management |
+| `backend/counters/` | MediaPipe-based exercise detection algorithms |
+| `public/models/` | 3D GLB models for visualization |
 
 ---
 
@@ -333,16 +676,20 @@ Cloud-native architecture for millions of users
 
 ---
 
-## 👥 Team
+## 👥 Team BIOMECH TITANS
 
 <div align="center">
 
-| Role | Responsibility |
-|------|---------------|
-| **Lead Developer** | Full-stack development, ML integration |
-| **UI/UX Designer** | User experience, accessibility |
-| **Research Lead** | Biomechanics validation, clinical alignment |
-| **DevOps Engineer** | Infrastructure, CI/CD, monitoring |
+<img src="docs/assets/biomech-titans-logo.png" alt="Biomech Titans" width="150"/>
+
+*"Engineering the Future of Human Movement Analysis"*
+
+| Member | Role | Contribution |
+|--------|------|--------------|
+| 🧑‍💻 **[Name]** | Lead Developer | Full-stack development, ML integration |
+| 🎨 **[Name]** | UI/UX Designer | User experience, 3D visualizations |
+| 🔬 **[Name]** | Hardware Lead | Sensor integration, embedded systems |
+| 📊 **[Name]** | Research Lead | Biomechanics validation, algorithms |
 
 </div>
 
