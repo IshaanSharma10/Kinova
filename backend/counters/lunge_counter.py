@@ -28,20 +28,36 @@ class FinalLungeCounter:
         self.stable_frame_count = 0
         self.min_rep_interval = 1.2 # Slightly longer interval for lunges
 
-        # Rep detection: Need 2 consecutive frames in a state
-        self.consecutive_frames_required = 2
+        # Rep detection: Increased for stability
+        self.consecutive_frames_required = 4  # Increased from 2
         self.consecutive_down_frames = 0
         self.consecutive_up_frames = 0
 
-        # Angles: Define UP and DOWN states (more relaxed than squats)
-        self.angle_threshold_up = 155 # Angle > 155 degrees is UP (both knees)
-        self.angle_threshold_down = 135 # Angle < 135 degrees is DOWN (both knees)
+        # Angles: Define UP and DOWN states with hysteresis
+        self.angle_threshold_up_high = 160  # High threshold when coming up
+        self.angle_threshold_up_low = 150   # Low threshold when going down
+        self.angle_threshold_down_high = 140 # High threshold when going up
+        self.angle_threshold_down_low = 125  # Low threshold when going down
+        
+        # Legacy thresholds
+        self.angle_threshold_up = 155
+        self.angle_threshold_down = 135
 
         # Smoothing: Use mean for responsiveness, moderate buffer size
-        self.smoothing_buffer_size = 8
+        self.smoothing_buffer_size = 10  # Increased for smoother detection
         self.front_knee_buffer = deque(maxlen=self.smoothing_buffer_size)
         self.back_knee_buffer = deque(maxlen=self.smoothing_buffer_size)
         self.hip_balance_buffer = deque(maxlen=self.smoothing_buffer_size) # For balance metric
+        
+        # Velocity tracking
+        self.angle_velocity_buffer = deque(maxlen=5)
+        self.min_down_velocity = 10.0   # Increased from 4.0 - Minimum angle change to count (prevents false positives)
+        self.max_up_velocity = 22.0    # Maximum to filter noise
+        
+        # Leg switching detection
+        self.last_leading_leg = None
+        self.leg_switch_cooldown = 1.5  # Seconds before allowing leg switch to count as new rep
+        self.last_leg_switch_time = 0
 
         # Confidence: MediaPipe detection confidence
         self.min_detection_confidence = 0.65
@@ -202,6 +218,41 @@ class FinalLungeCounter:
             if results.pose_landmarks:
                 landmarks = results.pose_landmarks.landmark
 
+                # CRITICAL: Check landmark visibility and confidence to prevent false positives
+                required_landmarks = [
+                    self.mp_pose.PoseLandmark.LEFT_HIP,
+                    self.mp_pose.PoseLandmark.RIGHT_HIP,
+                    self.mp_pose.PoseLandmark.LEFT_KNEE,
+                    self.mp_pose.PoseLandmark.RIGHT_KNEE,
+                    self.mp_pose.PoseLandmark.LEFT_ANKLE,
+                    self.mp_pose.PoseLandmark.RIGHT_ANKLE,
+                ]
+                
+                min_visibility = 0.5
+                all_landmarks_visible = True
+                for landmark_idx in required_landmarks:
+                    landmark = landmarks[landmark_idx.value]
+                    if hasattr(landmark, 'visibility') and landmark.visibility < min_visibility:
+                        all_landmarks_visible = False
+                        break
+                    if landmark.x < -0.2 or landmark.x > 1.2 or landmark.y < -0.2 or landmark.y > 1.2:
+                        all_landmarks_visible = False
+                        break
+                
+                if not all_landmarks_visible:
+                    if self.system_ready:
+                        self.system_ready = False
+                        self.stable_frame_count = 0
+                        self.stage = None
+                        print("⚠️ Landmarks unreliable - resetting system")
+                    if self.mp_drawing:
+                        self.mp_drawing.draw_landmarks(
+                            frame, results.pose_landmarks, self.mp_pose.POSE_CONNECTIONS,
+                            self.mp_drawing.DrawingSpec(color=(0, 0, 255), thickness=2, circle_radius=2),
+                            self.mp_drawing.DrawingSpec(color=(0, 0, 255), thickness=2)
+                        )
+                    return frame
+
                 # Key points
                 left_hip = [landmarks[self.mp_pose.PoseLandmark.LEFT_HIP.value].x * w, landmarks[self.mp_pose.PoseLandmark.LEFT_HIP.value].y * h]
                 left_knee = [landmarks[self.mp_pose.PoseLandmark.LEFT_KNEE.value].x * w, landmarks[self.mp_pose.PoseLandmark.LEFT_KNEE.value].y * h]
@@ -231,74 +282,145 @@ class FinalLungeCounter:
                 front_knee_angle = self.smooth_value(self.front_knee_buffer, raw_front_knee)
                 back_knee_angle = self.smooth_value(self.back_knee_buffer, raw_back_knee)
                 balance = self.smooth_value(self.hip_balance_buffer, raw_balance)
+                
+                # Track velocity
+                avg_knee_angle = (front_knee_angle + back_knee_angle) / 2
+                if len(self.angle_velocity_buffer) == 0:
+                    self.angle_velocity_buffer.append(avg_knee_angle)
+                else:
+                    self.angle_velocity_buffer.append(avg_knee_angle)
+                current_velocity = abs(avg_knee_angle - self.angle_velocity_buffer[-2]) if len(self.angle_velocity_buffer) >= 2 else 0
 
+                # ADDITIONAL SAFETY: Check for unrealistic angles (false detection)
+                if front_knee_angle < 30 or front_knee_angle > 180 or back_knee_angle < 30 or back_knee_angle > 180:
+                    if self.system_ready:
+                        self.system_ready = False
+                        self.stable_frame_count = 0
+                        self.stage = None
+                        print("⚠️ Unrealistic angles detected - resetting system")
+                    if self.mp_drawing:
+                        self.mp_drawing.draw_landmarks(
+                            frame, results.pose_landmarks, self.mp_pose.POSE_CONNECTIONS,
+                            self.mp_drawing.DrawingSpec(color=(0, 0, 255), thickness=2, circle_radius=2),
+                            self.mp_drawing.DrawingSpec(color=(0, 0, 255), thickness=2)
+                        )
+                    return frame
 
                 current_time = time.time()
+                
+                # Detect leg switching
+                if self.last_leading_leg is not None and self.current_leg != self.last_leading_leg:
+                    if current_time - self.last_leg_switch_time > self.leg_switch_cooldown:
+                        # Leg switch detected - reset if needed
+                        if self.stage == "DOWN":
+                            # Reset to UP state if switching legs mid-rep
+                            self.stage = "UP"
+                            self.rep_start_time = None
+                        self.last_leg_switch_time = current_time
+                self.last_leading_leg = self.current_leg
 
                 # --- READY STATE LOGIC ---
                 if not self.system_ready:
-                    if front_knee_angle > self.angle_threshold_up and back_knee_angle > self.angle_threshold_up:
+                    # Require both knees in upright position with stability
+                    if (front_knee_angle > self.angle_threshold_up_high and 
+                        back_knee_angle > self.angle_threshold_up_high and
+                        balance < self.quality_balance_threshold * 2):  # Reasonable balance for ready
                         self.stable_frame_count = min(self.stable_frame_count + 1, self.stable_frames_required)
                         if self.stable_frame_count >= self.stable_frames_required:
                             self.system_ready = True
                             self.stage = "UP"
                             self.last_stage = "UP"
+                            self.last_leading_leg = self.current_leg
                             print("✅ System Ready - Start Lunges!")
                     else:
                         self.stable_frame_count = max(0, self.stable_frame_count - 1)
 
                 # --- COUNTING LOGIC (Only if ready) ---
                 if self.system_ready:
-                    # Determine potential stage
-                    if front_knee_angle > self.angle_threshold_up and back_knee_angle > self.angle_threshold_up:
+                    # Use hysteresis-based detection
+                    is_up = False
+                    is_down = False
+                    
+                    if self.stage == "UP" or self.stage is None:
+                        # When in UP, use lower threshold to go down
+                        is_up = (front_knee_angle > self.angle_threshold_up_low and 
+                                back_knee_angle > self.angle_threshold_up_low)
+                        is_down = (front_knee_angle < self.angle_threshold_down_high and 
+                                  back_knee_angle < self.angle_threshold_down_high and
+                                  current_velocity > self.min_down_velocity)
+                    else:  # self.stage == "DOWN"
+                        # When in DOWN, use higher threshold to come up
+                        is_up = (front_knee_angle > self.angle_threshold_up_high and 
+                                back_knee_angle > self.angle_threshold_up_high)
+                        is_down = (front_knee_angle < self.angle_threshold_down_low and 
+                                  back_knee_angle < self.angle_threshold_down_low)
+                    
+                    # Update consecutive frame counters
+                    if is_up:
                         self.consecutive_up_frames += 1
                         self.consecutive_down_frames = 0
                         current_stage_potential = "UP"
-                    elif front_knee_angle < self.angle_threshold_down and back_knee_angle < self.angle_threshold_down:
+                    elif is_down:
                         self.consecutive_down_frames += 1
                         self.consecutive_up_frames = 0
                         current_stage_potential = "DOWN"
                     else:
-                        self.consecutive_up_frames = 0
-                        self.consecutive_down_frames = 0
+                        # Transition zone
+                        self.consecutive_up_frames = max(0, self.consecutive_up_frames - 1)
+                        self.consecutive_down_frames = max(0, self.consecutive_down_frames - 1)
                         current_stage_potential = self.stage
 
                     # Confirm stage change
                     if current_stage_potential == "UP" and self.consecutive_up_frames >= self.consecutive_frames_required:
                         if self.stage == "DOWN":
-                            self.counter += 1
-                            if self.rep_start_time:
+                            # Validate rep completion
+                            if self.rep_start_time and (current_time - self.last_rep_time) > self.min_rep_interval:
                                 rep_time = current_time - self.rep_start_time
-                                self.speeds.append(rep_time)
-                                self.avg_speed = np.mean(self.speeds[-10:]) if self.speeds else 0
+                                
+                                # Calculate minimum angles reached
+                                min_front = min(list(self.front_knee_buffer)) if self.front_knee_buffer else front_knee_angle
+                                min_back = min(list(self.back_knee_buffer)) if self.back_knee_buffer else back_knee_angle
+                                
+                                # Only count if minimum depth was reached on both knees
+                                if (min_front < self.angle_threshold_down_low and 
+                                    min_back < self.angle_threshold_down_high and
+                                    1.0 < rep_time < 8.0):  # Reasonable time range
+                                    
+                                    self.counter += 1
+                                    self.speeds.append(rep_time)
+                                    self.avg_speed = np.mean(self.speeds[-10:]) if self.speeds else 0
+                                    
+                                    avg_bal = np.mean(self.balance_history) if self.balance_history else balance
 
-                                min_front = min(self.front_knee_buffer) if self.front_knee_buffer else front_knee_angle
-                                min_back = min(self.back_knee_buffer) if self.back_knee_buffer else back_knee_angle
-                                avg_bal = np.mean(self.balance_history) if self.balance_history else balance
-
-                                if self.detect_lunge_quality(min_front, min_back, avg_bal, rep_time):
-                                    self.good_reps += 1
-                                    print(f"✅ Rep #{self.counter} (Good) - {self.current_leg} - Time: {rep_time:.2f}s")
+                                    if self.detect_lunge_quality(min_front, min_back, avg_bal, rep_time):
+                                        self.good_reps += 1
+                                        print(f"✅ Rep #{self.counter} (Good) - {self.current_leg} - Time: {rep_time:.2f}s, Front: {min_front:.1f}°, Back: {min_back:.1f}°")
+                                    else:
+                                        self.bad_reps += 1
+                                        print(f"⚠️ Rep #{self.counter} (Bad) - {self.current_leg} - Time: {rep_time:.2f}s, Front: {min_front:.1f}°, Back: {min_back:.1f}°")
                                 else:
-                                    self.bad_reps += 1
-                                    print(f"⚠️ Rep #{self.counter} (Bad) - {self.current_leg} - Time: {rep_time:.2f}s")
+                                    print(f"⚠️ Rep #{self.counter + 1} ignored - insufficient depth or unrealistic time")
                                 self.last_rep_time = current_time
-                                self.balance_history.clear() # Reset balance history for next rep
+                                self.balance_history.clear()
                             self.rep_start_time = None
                         self.stage = "UP"
 
                     elif current_stage_potential == "DOWN" and self.consecutive_down_frames >= self.consecutive_frames_required:
-                        if self.stage == "UP":
+                        # Only start new rep if we were in UP, enough time passed, and velocity is reasonable
+                        if (self.stage == "UP" and 
+                            (current_time - self.last_rep_time) > self.min_rep_interval and
+                            current_velocity < self.max_up_velocity):
                             self.rep_start_time = current_time
                             self.front_knee_buffer.clear()
                             self.back_knee_buffer.clear()
-                            self.balance_history.clear() # Start collecting balance data
+                            self.balance_history.clear()
+                            self.angle_velocity_buffer.clear()
                             print(f"🏋️ Rep #{self.counter + 1} - {self.current_leg} leg forward - Going down...")
-                        self.stage = "DOWN"
+                            self.stage = "DOWN"
 
                     # Collect balance data only when confirmed in DOWN state
                     if self.stage == "DOWN":
-                        self.balance_history.append(raw_balance) # Store raw balance during DOWN
+                        self.balance_history.append(raw_balance)
 
                 # --- DRAWING ---
                 landmark_radius = max(2, int(3 * self.current_scale))

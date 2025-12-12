@@ -5,6 +5,8 @@ import { database } from '@/Firebase/ifreConfig';
 export interface MLFirebaseInsights {
   avgGaitScoreLast20?: number;
   avgClassificationLast20?: string;
+  gaitScoreDeterministic?: number;  // From average_scores node
+  gaitScoreClassification?: string;  // From average_scores node
   // optional fields your inference may write later:
   mlPrediction?: string;
   mlConfidence?: number;           // 0-1
@@ -32,8 +34,12 @@ export function useMLInsightsFromFirebase(nodePath = '/gaitData/average_scores')
 
         // Normalize shape - support both old and future fields
         const normalized: MLFirebaseInsights = {
-          avgGaitScoreLast20: val.avgGaitScoreLast20 ?? val.avgGaitScore ?? undefined,
-          avgClassificationLast20: val.avgClassificationLast20 ?? val.avgClassification ?? undefined,
+          // Primary: gaitScoreDeterministic from average_scores node
+          gaitScoreDeterministic: typeof val.gaitScoreDeterministic === 'number' ? val.gaitScoreDeterministic : undefined,
+          gaitScoreClassification: typeof val.gaitScoreClassification === 'string' ? val.gaitScoreClassification : undefined,
+          // Fallback: old field names
+          avgGaitScoreLast20: val.avgGaitScoreLast20 ?? val.avgGaitScore ?? val.gaitScoreDeterministic ?? undefined,
+          avgClassificationLast20: val.avgClassificationLast20 ?? val.avgClassification ?? val.gaitScoreClassification ?? undefined,
           mlPrediction: val.prediction ?? val.mlPrediction ?? undefined,
           mlConfidence: typeof val.confidence === 'number' ? val.confidence : undefined,
           mlRecommendations: Array.isArray(val.recommendations) ? val.recommendations : undefined,

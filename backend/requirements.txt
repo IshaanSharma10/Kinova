@@ -6,3 +6,11 @@ numpy
 mediapipe
 httpx
 openai
+# ML Dependencies for Neural Network Training
+tensorflow>=2.15.0
+pandas>=2.0.0
+scikit-learn>=1.3.0
+tqdm>=4.66.0
+joblib>=1.3.0
+# Firebase for inference
+firebase-admin>=6.0.0

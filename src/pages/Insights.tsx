@@ -202,8 +202,14 @@ export default function Insights(): JSX.Element {
   }
 
   // ML-provided gait score preferred
-  const mlGaitScore = typeof mlData?.avgGaitScoreLast20 === 'number' ? mlData.avgGaitScoreLast20 : undefined;
-  const mlClassification = mlData?.avgClassificationLast20;
+  // Use gaitScoreDeterministic from average_scores node, fallback to avgGaitScoreLast20
+  const mlGaitScore = typeof mlData?.gaitScoreDeterministic === 'number' 
+    ? mlData.gaitScoreDeterministic 
+    : typeof mlData?.avgGaitScoreLast20 === 'number' 
+      ? mlData.avgGaitScoreLast20 
+      : undefined;
+  // Use gaitScoreClassification from average_scores node, fallback to avgClassificationLast20
+  const mlClassification = mlData?.gaitScoreClassification ?? mlData?.avgClassificationLast20;
   const mlRecommendations = mlData?.mlRecommendations ?? undefined;
 
   // Local composite fallback
@@ -411,7 +417,7 @@ const chartData = localScores.map((score, i) => ({
 
               <p className="text-sm text-muted-foreground mt-3">
                 {mlData
-                  ? `ML average (last 20 or recent): ${mlGaitScore?.toFixed(2)} — Classification: ${mlClassification ?? 'N/A'}`
+                  ? `ML Gait Score (gaitScoreDeterministic): ${mlGaitScore?.toFixed(2)} — Classification: ${mlClassification ?? 'N/A'}`
                   : `Based on key gait parameters over the last ${latestData.length} data points`}
               </p>
             </div>
@@ -429,12 +435,12 @@ const chartData = localScores.map((score, i) => ({
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex justify-between">
-                <p className="text-sm text-muted-foreground">ML Gait Score</p>
+                <p className="text-sm text-muted-foreground">Gait Score (Deterministic)</p>
                 <p className="font-medium">{mlGaitScore?.toFixed(2) ?? '—'}</p>
               </div>
 
               <div className="flex justify-between">
-                <p className="text-sm text-muted-foreground">ML Classification</p>
+                <p className="text-sm text-muted-foreground">Classification</p>
                 <Badge className={getScoreBadgeClasses(gaitScore)}>
   {mlClassification ?? '—'}
 </Badge>

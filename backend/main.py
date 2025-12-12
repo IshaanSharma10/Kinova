@@ -11,6 +11,22 @@ import httpx
 app = FastAPI()
 
 # ============================================
+# EXERCISE COUNTER INSTANCES (Persistent State)
+# ============================================
+# Import counter classes
+from counters.squat_counter import FinalSquatCounter
+from counters.pushup_counter import FinalBalancedPushUpCounter
+from counters.lunge_counter import FinalLungeCounter
+
+# Create persistent counter instances (one per exercise type)
+# These maintain state between frames
+exercise_counters = {
+    "squats": FinalSquatCounter(),
+    "pushups": FinalBalancedPushUpCounter(),
+    "lunges": FinalLungeCounter()
+}
+
+# ============================================
 # HUGGING FACE CONFIGURATION
 # ============================================
 # If environment variables are not set, use these values
@@ -35,12 +51,29 @@ def get_hf_config():
     
     return url, token
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# CORS Configuration - Allow specific origins for production
+import os
+allowed_origins_str = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:3000")
+allowed_origins = [origin.strip() for origin in allowed_origins_str.split(",") if origin.strip()]
+
+# In development, allow all origins; in production, use specific origins
+# Set ALLOWED_ORIGINS environment variable in production
+if os.getenv("ENVIRONMENT") == "production" and allowed_origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=allowed_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+else:
+    # Development: allow all origins
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 
 @app.get("/")
@@ -65,21 +98,31 @@ def debug_env():
     }
 
 
-def run_worker(worker_name: str, frame):
-    # Encode frame to bytes
-    _, img_encoded = cv2.imencode(".jpg", frame)
-    img_bytes = img_encoded.tobytes()
-
-    # Run worker Python file
-    process = subprocess.Popen(
-        ["python", f"workers/{worker_name}.py"],
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE
-    )
-
-    output, _ = process.communicate(input=img_bytes)
-
-    return json.loads(output.decode())
+def process_frame_with_counter(workout_type: str, frame):
+    """
+    Process a frame using the persistent counter instance.
+    This maintains state between frames (counter value, buffers, etc.)
+    """
+    if workout_type not in exercise_counters:
+        raise ValueError(f"Unknown workout type: {workout_type}")
+    
+    counter = exercise_counters[workout_type]
+    
+    # Process the frame (this updates the counter state internally)
+    processed_frame = counter.process_frame(frame)
+    
+    # Encode processed frame to JPEG
+    _, jpeg = cv2.imencode(".jpg", processed_frame)
+    
+    # Return result with current counter state
+    return {
+        "frame": jpeg.tobytes().hex(),
+        "count": counter.counter,
+        "stage": counter.stage,
+        "avg_speed": counter.avg_speed,
+        "good_reps": counter.good_reps,
+        "bad_reps": counter.bad_reps,
+    }
 
 
 @app.post("/process-frame")
@@ -102,16 +145,41 @@ async def process_frame(
         if frame is None:
             return {"error": "Failed to decode image"}
 
-        # Call the worker
-        result = run_worker(workout_type, frame)
+        # Process frame using persistent counter instance (maintains state between frames)
+        result = process_frame_with_counter(workout_type, frame)
         
         if not result:
-            return {"error": "Worker returned empty result"}
+            return {"error": "Processing returned empty result"}
 
         return result
     except Exception as e:
         import traceback
         print(f"Error processing frame: {str(e)}")
+        print(traceback.format_exc())
+        return {"error": f"Internal server error: {str(e)}"}
+
+
+@app.post("/reset-counter")
+async def reset_counter(workout_type: str = Form(...)):
+    """
+    Reset a specific counter's state (useful when starting a new workout session)
+    """
+    try:
+        if workout_type not in exercise_counters:
+            return {"error": "Invalid workout type"}
+        
+        # Recreate the counter instance (resets all state)
+        if workout_type == "squats":
+            exercise_counters[workout_type] = FinalSquatCounter()
+        elif workout_type == "pushups":
+            exercise_counters[workout_type] = FinalBalancedPushUpCounter()
+        elif workout_type == "lunges":
+            exercise_counters[workout_type] = FinalLungeCounter()
+        
+        return {"status": "Counter reset successfully", "workout_type": workout_type}
+    except Exception as e:
+        import traceback
+        print(f"Error resetting counter: {str(e)}")
         print(traceback.format_exc())
         return {"error": f"Internal server error: {str(e)}"}
 

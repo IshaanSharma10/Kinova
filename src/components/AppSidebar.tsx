@@ -9,6 +9,7 @@ import {
   TrendingUp,
   User
 } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   Sidebar,
   SidebarContent,
@@ -25,8 +26,9 @@ import {
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: Activity },
-  { name: 'Live View', href: '/live-view', icon: Zap },
+  // { name: 'Live View', href: '/live-view', icon: Zap },
   { name: 'Analytics', href: '/analytics', icon: BarChart3 },
+  // { name: 'Profile', href: '/profile', icon: User },
   { name: 'Insights', href: '/insights', icon: TrendingUp },
   { name: 'Comparison', href: '/comparison', icon: TrendingUp },
   { name: 'Chatbot', href: '/chatbot', icon: MessageSquare },
@@ -46,15 +48,7 @@ const sensors = [
 export function AppSidebar() {
   const { open } = useSidebar();
   const location = useLocation();
-
-  const [user, setUser] = useState<{ name?: string; email?: string } | null>(null);
-
-  useEffect(() => {
-    const storedUser = localStorage.getItem('user');
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
-  }, []);
+  const { currentUser, userProfile } = useAuth();
 
   const getNavCls = ({ isActive }: { isActive: boolean }) =>
     isActive ? 'bg-primary text-primary-foreground shadow-glow' : 'hover:bg-sidebar-accent hover:text-primary';
@@ -136,30 +130,33 @@ export function AppSidebar() {
       {/* ✅ Dynamic User Info */}
       <SidebarFooter className="border-t border-sidebar-border p-3">
         <SidebarMenuItem>
-          <NavLink
-            to="/chatbot"
-            className={({ isActive }) =>
-              `flex items-center gap-3 p-3 rounded-lg text-sm font-medium transition-all duration-300 ${
-                isActive
-                  ? 'bg-primary text-primary-foreground shadow-glow'
-                  : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-primary'
-              }`
-            }
-          >
+          <div className="flex items-center gap-3 p-3 rounded-lg text-sm font-medium transition-all duration-300 text-sidebar-foreground">
             <div className="h-8 w-8 bg-gradient-primary rounded-full flex items-center justify-center shrink-0">
-              <User className="h-4 w-4 text-primary" />
+              {currentUser?.photoURL ? (
+                <img 
+                  src={currentUser.photoURL} 
+                  alt={currentUser.displayName || 'User'} 
+                  className="h-8 w-8 rounded-full object-cover"
+                />
+              ) : (
+                <User className="h-4 w-4 text-primary" />
+              )}
             </div>
             {open && (
-              <div className="flex flex-col min-w-0">
+              <div className="flex flex-col min-w-0 flex-1">
                 <span className="text-sm font-medium truncate">
-                  {user?.name || 'Guest User'}
+                  {currentUser?.displayName || userProfile?.displayName || 'Guest User'}
                 </span>
                 <span className="text-xs text-muted-foreground truncate">
-                  {user?.email || 'user'}
+                  {userProfile?.persona === 'athlete' 
+                    ? 'Athlete'
+                    : userProfile?.persona === 'trainer'
+                    ? (userProfile?.role || 'Trainer/Physio')
+                    : currentUser?.email || 'User'}
                 </span>
               </div>
             )}
-          </NavLink>
+          </div>
         </SidebarMenuItem>
       </SidebarFooter>
     </Sidebar>

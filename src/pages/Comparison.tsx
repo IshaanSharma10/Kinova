@@ -8,11 +8,71 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, Tooltip, Legend, LineChart, Line, XAxis, YAxis, CartesianGrid, Area, AreaChart } from 'recharts';
 import gsap from 'gsap';
-import { Activity, TrendingUp, TrendingDown, Target, Lightbulb, Calendar, CheckCircle2, AlertCircle, Info, Zap, BarChart3, ChevronRight, Scale, Footprints, Gauge, Timer, Loader2, Brain, Download, User, Ruler, Weight, Edit3, Save, X } from 'lucide-react';
+import { Activity, TrendingUp, TrendingDown, Target, Lightbulb, Calendar, CheckCircle2, AlertCircle, Info, Zap, BarChart3, ChevronRight, Scale, Footprints, Gauge, Timer, Loader2, Brain, Download, User, Ruler, Weight, Edit3, Save, X, AlertTriangle, Shield } from 'lucide-react';
 import { useGaitMetrics, GaitDataEntry } from '@/hooks/useGaitMetrics';
 import { useMLInsightsFromFirebase } from '@/hooks/useMLInsightsFromFirebase';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import {
+  categorizeWalkingSpeed,
+  categorizeCadence,
+  categorizeStrideLength,
+  categorizePosturalSway,
+  categorizeEquilibriumScore,
+  categorizeStepWidth,
+  categorizeKneeForce,
+  categorizeGaitSymmetry,
+  type CategorizationResult,
+} from '@/utils/gaitCategorization';
+
+// ----------------- Gait Score Calculation (same as Insights) -----------------
+const mapValue = (
+  value: number,
+  inMin: number,
+  inMax: number,
+  outMin: number,
+  outMax: number
+): number => {
+  const mapped =
+    ((value - inMin) * (outMax - outMin)) / (inMax - inMin) + outMin;
+  return Math.max(outMin, Math.min(outMax, mapped));
+};
+
+const calculateRawCompositeScore = (entry: GaitDataEntry): number => {
+  if (
+    !entry ||
+    typeof entry.equilibriumScore !== 'number' ||
+    typeof entry.cadence !== 'number' ||
+    typeof entry.posturalSway !== 'number'
+  ) {
+    return 0;
+  }
+
+  const weights = {
+    equilibrium: 0.45,
+    cadence: 0.35,
+    sway: 0.2,
+  };
+
+  // Map equilibrium (example mapping — adjust if your sensors scale differs)
+  const equilibriumScore = mapValue(entry.equilibriumScore, 0.05, 0.4, 0, 100);
+  const optimalCadence = 110;
+  const maxDeviation = 35;
+  const cadenceDeviation = Math.abs(entry.cadence - optimalCadence);
+  const cadenceMappedScore = mapValue(cadenceDeviation, 0, maxDeviation, 100, 0);
+  const swayMappedScore = mapValue(entry.posturalSway, 25, 1, 0, 100);
+
+  const finalScore =
+    equilibriumScore * weights.equilibrium +
+    cadenceMappedScore * weights.cadence +
+    swayMappedScore * weights.sway;
+
+  return finalScore;
+};
+
+const clamp = (n: number, min = 0, max = 100) => {
+  return Math.max(min, Math.min(max, n));
+};
 
 interface MetricData {
   parameter: string;
@@ -23,6 +83,7 @@ interface MetricData {
   description: string;
   relatedTo: string;
   icon: React.ElementType;
+  categorization?: CategorizationResult;
 }
 
 interface UserProfile {
@@ -34,55 +95,83 @@ interface UserProfile {
 
 // Research-based formulas for calculating ideal gait parameters
 // Based on biomechanical research and clinical studies
+// Updated with improved biomechanical relationships
 const calculateIdealParameters = (profile: UserProfile) => {
   const { height, weight } = profile;
   const heightM = height / 100; // Convert to meters
   const bmi = weight / (heightM * heightM);
-  const legLength = height * 0.53; // Leg length is approximately 53% of height
+  
+  // Leg length calculation: More accurate biomechanical model
+  // Reference: Winter (1991) - Biomechanics and Motor Control of Human Movement
+  // Leg length = 0.53 × height (more accurate for adults)
+  // For better precision, we use: 0.47 × height (thigh) + 0.26 × height (shank) = 0.73 × height (total)
+  // But for practical purposes, 0.53 is standard
+  const legLength = height * 0.53; // cm
+  const legLengthM = legLength / 100; // meters
   
   // Cadence: Decreases with height (taller people take fewer, longer steps)
   // Reference: Bohannon, R.W. (1997) - Comfortable and maximum walking speed
-  // Formula adjusted for height: base cadence adjusted by height deviation from average (170cm)
-  const idealCadence = Math.round(115 - (height - 170) * 0.15);
+  // Formula: Base cadence (115) adjusted by height deviation from average (170cm)
+  // Taller individuals naturally have lower cadence due to longer stride
+  const baseCadence = 115;
+  const heightFactor = (height - 170) * 0.15; // -0.15 steps/min per cm above 170cm
+  const idealCadence = Math.max(80, Math.min(135, Math.round(baseCadence - heightFactor)));
   
-  // Walking Speed: Correlates with leg length
+  // Stride Length: Directly proportional to leg length
+  // Reference: Murray et al. (1964), Winter (1991)
+  // Stride length ≈ 1.2-1.4 × leg length for comfortable walking
+  // More accurate: stride = 1.3 × leg length (in meters)
+  // This ensures taller people have proportionally longer strides
+  const idealStrideLength = parseFloat((legLengthM * 1.3).toFixed(3));
+  
+  // Walking Speed: Function of both stride length and cadence
   // Reference: Oberg et al. (1993) - Basic gait parameters
-  // Formula: ~0.9-1.0 × leg length in meters for comfortable walking
-  const idealWalkingSpeed = parseFloat((legLength / 100 * 0.95).toFixed(2));
+  // Speed = (Stride Length × Cadence) / 120
+  // Alternative: Speed ≈ 0.9-1.0 × leg length (m) for comfortable walking
+  // We use the more biomechanically accurate: speed = stride × cadence / 120
+  const speedFromStrideCadence = (idealStrideLength * idealCadence) / 120;
+  const speedFromLegLength = legLengthM * 0.95;
+  // Use average of both methods for better accuracy
+  const idealWalkingSpeed = parseFloat(((speedFromStrideCadence + speedFromLegLength) / 2).toFixed(2));
   
-  // Stride Length: ~40-45% of height
-  // Reference: Murray et al. (1964) - Walking patterns of normal men
-  const idealStrideLength = parseFloat((height * 0.43 / 100).toFixed(3));
-  
-  // Step Width: Related to height for stability
+  // Step Width: Related to height and base of support
   // Reference: Gabell & Nayak (1984) - Variability of gait parameters
-  // Normal range: 5-13cm, slightly wider for taller individuals
-  const idealStepWidth = parseFloat((0.06 + (height - 150) * 0.0008).toFixed(4));
+  // Normal range: 8-12cm for average height, scales with height
+  // Formula: base width (0.10m) adjusted by height
+  const baseStepWidth = 0.10; // 10cm base
+  const heightAdjustment = (height - 170) * 0.0003; // 0.3mm per cm deviation
+  const idealStepWidth = parseFloat(Math.max(0.05, Math.min(0.20, baseStepWidth + heightAdjustment)).toFixed(4));
   
-  // Knee Force: Approximately 1.5-2x body weight during normal walking
+  // Knee Force: Depends on weight and biomechanical factors
   // Reference: Kutzner et al. (2010) - In vivo knee joint forces
-  const idealKneeForce = Math.round(weight * 9.81 * 1.5);
+  // Peak knee force during walking: 1.5-2.5 × body weight
+  // For ideal gait: ~1.5 × BW (lower is better for joint health)
+  // Force in Newtons = weight (kg) × 9.81 (gravity) × multiplier
+  const idealKneeForceBW = 1.5; // Body weight multiplier
+  const idealKneeForce = Math.round(weight * 9.81 * idealKneeForceBW);
   
   // Step Frequency (Hz): Derived from cadence
   // Frequency = Cadence / 60
   const idealFrequency = parseFloat((idealCadence / 60).toFixed(3));
   
-  // Postural Sway: Increases with BMI and height
-  // Reference: Hue et al. (2007) - Body weight and postural sway
-  // Lower is better, adjusted for body composition
-  const baseSway = 12; // mm for ideal BMI
-  const bmiAdjustment = Math.max(0, (bmi - 22) * 0.5);
-  const heightAdjustment = (height - 170) * 0.03;
-  const idealPosturalSway = parseFloat((baseSway + bmiAdjustment + heightAdjustment).toFixed(1));
+  // Postural Sway: Ideal range is 0-1 degrees (everything between 0-1 is ideal)
+  // Reference: Clinical standards for postural stability
+  // Lower is better, ideal range is 0-1 degrees
+  // For comparison purposes, use 0.5 as the ideal target (middle of ideal range)
+  // Any value between 0-1 is considered ideal
+  const idealPosturalSway = 0.5; // Target ideal value (middle of 0-1 ideal range)
   
   // Equilibrium Score: Inversely related to BMI extremes
   // Reference: Greve et al. (2007) - Correlation between BMI and postural balance
-  // Optimal BMI (20-25) gives best balance
+  // Optimal BMI (20-25) gives best balance (0.30-1.00 range)
+  // Scale: 0.10 (poor) to 1.00 (excellent)
   let idealEquilibrium = 0.95;
   if (bmi < 18.5 || bmi > 30) {
-    idealEquilibrium = 0.85;
+    idealEquilibrium = 0.85; // Needs Attention range
   } else if (bmi < 20 || bmi > 27) {
-    idealEquilibrium = 0.90;
+    idealEquilibrium = 0.90; // Fair range
+  } else if (bmi >= 20 && bmi <= 25) {
+    idealEquilibrium = 0.95; // Excellent range
   }
   
   return {
@@ -262,7 +351,7 @@ const Comparison = () => {
   const metricsData: MetricData[] = useMemo(() => {
     if (!latestEntry) return [];
 
-    return [
+    const metrics: MetricData[] = [
       {
         parameter: 'Equilibrium',
         actual: formatValue(latestEntry.equilibriumScore, 4),
@@ -271,17 +360,19 @@ const Comparison = () => {
         category: 'Balance',
         description: 'Balance & Stability Score',
         relatedTo: `BMI: ${idealParameters.bmi}`,
-        icon: Target
+        icon: Target,
+        categorization: categorizeEquilibriumScore(latestEntry.equilibriumScore)
       },
       {
         parameter: 'Postural Sway',
         actual: formatValue(latestEntry.posturalSway, 2),
         ideal: idealParameters.posturalSway,
-        unit: 'mm',
+        unit: 'deg',
         category: 'Balance',
         description: 'Body Oscillation',
         relatedTo: `BMI-adjusted`,
-        icon: Activity
+        icon: Activity,
+        categorization: categorizePosturalSway(latestEntry.posturalSway)
       },
       {
         parameter: 'Cadence',
@@ -291,7 +382,8 @@ const Comparison = () => {
         category: 'Gait Parameters',
         description: 'Step Rate',
         relatedTo: `Height: ${userProfile.height}cm`,
-        icon: Gauge
+        icon: Gauge,
+        categorization: categorizeCadence(latestEntry.cadence)
       },
       {
         parameter: 'Frequency',
@@ -311,7 +403,8 @@ const Comparison = () => {
         category: 'Gait Parameters',
         description: 'Lateral Step Distance',
         relatedTo: `Height: ${userProfile.height}cm`,
-        icon: Footprints
+        icon: Footprints,
+        categorization: categorizeStepWidth(latestEntry.stepWidth)
       },
       {
         parameter: 'Knee Force',
@@ -321,7 +414,12 @@ const Comparison = () => {
         category: 'Biomechanics',
         description: 'Peak Knee Joint Force',
         relatedTo: `Weight: ${userProfile.weight}kg`,
-        icon: Zap
+        icon: Zap,
+        // Note: Knee force categorization expects BW units, but we have N
+        // We'll convert: BW = force / (weight * 9.81)
+        categorization: categorizeKneeForce(
+          latestEntry.kneeForce ? latestEntry.kneeForce / (userProfile.weight * 9.81) : undefined
+        )
       },
       {
         parameter: 'Walking Speed',
@@ -331,7 +429,8 @@ const Comparison = () => {
         category: 'Gait Parameters',
         description: 'Average Walking Velocity',
         relatedTo: `Leg: ${idealParameters.legLength}cm`,
-        icon: TrendingUp
+        icon: TrendingUp,
+        categorization: categorizeWalkingSpeed(latestEntry.walkingSpeed)
       },
       {
         parameter: 'Stride Length',
@@ -341,9 +440,27 @@ const Comparison = () => {
         category: 'Gait Parameters',
         description: 'Distance Per Stride',
         relatedTo: `Height: ${userProfile.height}cm`,
-        icon: Footprints
+        icon: Footprints,
+        categorization: categorizeStrideLength(latestEntry.strideLength)
       }
     ];
+
+    // Add gait symmetry if available
+    if (latestEntry.gaitSymmetry !== undefined) {
+      metrics.push({
+        parameter: 'Gait Symmetry',
+        actual: formatValue(latestEntry.gaitSymmetry, 2),
+        ideal: 100, // 100% is ideal
+        unit: '%',
+        category: 'Gait Parameters',
+        description: 'Left-Right Symmetry',
+        relatedTo: 'Bilateral Balance',
+        icon: Scale,
+        categorization: categorizeGaitSymmetry(latestEntry.gaitSymmetry)
+      });
+    }
+
+    return metrics;
   }, [latestEntry, idealParameters, userProfile]);
 
   // Transform data for radar chart
@@ -501,11 +618,23 @@ const Comparison = () => {
     return recs;
   }, [metricsData]);
 
-  const getComparisonStatus = (actual: number, ideal: number) => {
+  const getComparisonStatus = (actual: number, ideal: number, parameter?: string) => {
     // Handle edge cases
     if (ideal === 0 || actual === undefined || ideal === undefined) {
       return { status: 'unknown' as const, icon: AlertCircle, color: 'text-muted-foreground', bgColor: 'bg-muted/20', borderColor: 'border-muted/30' };
     }
+    
+    // Special case for Postural Sway: 0-1 is ideal range
+    if (parameter === 'Postural Sway') {
+      if (actual >= 0 && actual <= 1) {
+        return { status: 'optimal' as const, icon: CheckCircle2, color: 'text-emerald-400', bgColor: 'bg-emerald-500/20', borderColor: 'border-emerald-500/30' };
+      } else if (actual > 1) {
+        return { status: 'above' as const, icon: TrendingUp, color: 'text-amber-400', bgColor: 'bg-amber-500/20', borderColor: 'border-amber-500/30' };
+      } else {
+        return { status: 'below' as const, icon: TrendingDown, color: 'text-sky-400', bgColor: 'bg-sky-500/20', borderColor: 'border-sky-500/30' };
+      }
+    }
+    
     const diff = ((actual - ideal) / ideal) * 100;
     if (Math.abs(diff) < 15) {
       return { status: 'optimal' as const, icon: CheckCircle2, color: 'text-emerald-400', bgColor: 'bg-emerald-500/20', borderColor: 'border-emerald-500/30' };
@@ -521,6 +650,214 @@ const Comparison = () => {
     return ((actual - ideal) / ideal * 100).toFixed(1);
   };
 
+  // Threat interface and data structure
+  interface Threat {
+    id: string;
+    title: string;
+    description: string;
+    severity: 'high' | 'medium' | 'low';
+    affectedSystems: string[];
+    parameter: string;
+    direction: 'above' | 'below';
+  }
+
+  // Research-based threats for each parameter
+  const getThreatsForParameter = (metric: MetricData): Threat[] => {
+    const status = getComparisonStatus(metric.actual, metric.ideal, metric.parameter);
+    if (status.status === 'optimal') return [];
+
+    const deviation = Math.abs(parseFloat(getDeviationPercent(metric.actual, metric.ideal)));
+    const severity: 'high' | 'medium' | 'low' = deviation > 30 ? 'high' : deviation > 15 ? 'medium' : 'low';
+    const direction = status.status === 'above' ? 'above' : 'below';
+    const threats: Threat[] = [];
+
+    switch (metric.parameter) {
+      case 'Equilibrium':
+        if (direction === 'below') {
+          threats.push({
+            id: 'equilibrium-low-1',
+            title: 'Balance Improvement Opportunity',
+            description: `Your equilibrium score suggests there's room to enhance your balance and stability. Improving postural control and proprioceptive awareness can help reduce the risk of falls and enhance your overall movement confidence.`,
+            severity,
+            affectedSystems: ['Balance System', 'Proprioception', 'Vestibular Function'],
+            parameter: 'Equilibrium',
+            direction: 'below'
+          });
+        }
+        break;
+
+      case 'Postural Sway':
+        if (direction === 'above') {
+          threats.push({
+            id: 'sway-high-1',
+            title: 'Stability Enhancement Needed',
+            description: `Your postural sway indicates an opportunity to improve stability. With targeted balance training and core strengthening, you can enhance your postural control and reduce movement variability for safer, more confident movement.`,
+            severity,
+            affectedSystems: ['Balance Control', 'Proprioceptive System', 'Core Stability'],
+            parameter: 'Postural Sway',
+            direction: 'above'
+          });
+        }
+        break;
+
+      case 'Cadence':
+        if (direction === 'below') {
+          threats.push({
+            id: 'cadence-low-1',
+            title: 'Gait Efficiency Optimization',
+            description: `Adjusting your cadence can help reduce stress on your joints and improve movement efficiency. A slightly higher step rate can help distribute forces more evenly and support long-term joint health.`,
+            severity,
+            affectedSystems: ['IT Band', 'Patellofemoral Joint', 'Achilles Tendon', 'Knee Joints'],
+            parameter: 'Cadence',
+            direction: 'below'
+          });
+        } else if (direction === 'above') {
+          threats.push({
+            id: 'cadence-high-1',
+            title: 'Movement Pattern Refinement',
+            description: `Your current cadence may create excessive impact forces. Adjusting your stride pattern can help reduce joint loading and improve movement efficiency for more comfortable, sustainable activity.`,
+            severity,
+            affectedSystems: ['Knee Joints', 'Hip Joints', 'Shock Absorption', 'Impact Forces'],
+            parameter: 'Cadence',
+            direction: 'above'
+          });
+        }
+        break;
+
+      case 'Walking Speed':
+        if (direction === 'below') {
+          threats.push({
+            id: 'speed-low-1',
+            title: 'Mobility Enhancement Opportunity',
+            description: `Improving your walking speed can enhance your overall mobility and functional capacity. With gradual training and strength building, you can increase your pace and enjoy more active, independent movement.`,
+            severity,
+            affectedSystems: ['Functional Capacity', 'Mobility', 'Independence', 'Cardiovascular Health'],
+            parameter: 'Walking Speed',
+            direction: 'below'
+          });
+        }
+        break;
+
+      case 'Stride Length':
+        if (direction === 'below') {
+          threats.push({
+            id: 'stride-short-1',
+            title: 'Movement Pattern Optimization',
+            description: `Your stride length suggests there's potential to improve your gait mechanics. Working on hip flexibility and leg strength can help you achieve a more efficient stride pattern that supports better movement quality.`,
+            severity,
+            affectedSystems: ['Muscle Balance', 'Gait Mechanics', 'Joint Alignment', 'Hip Flexors'],
+            parameter: 'Stride Length',
+            direction: 'below'
+          });
+        } else if (direction === 'above') {
+          threats.push({
+            id: 'stride-long-1',
+            title: 'Joint-Friendly Movement',
+            description: `Adjusting your stride length can help reduce joint stress and improve movement comfort. A slightly shorter stride can distribute forces more evenly and support long-term joint health.`,
+            severity,
+            affectedSystems: ['Hip Joints', 'Knee Joints', 'Shock Absorption', 'Osteoarthritis Risk'],
+            parameter: 'Stride Length',
+            direction: 'above'
+          });
+        }
+        break;
+
+      case 'Step Width':
+        if (direction === 'below') {
+          threats.push({
+            id: 'width-narrow-1',
+            title: 'Lateral Stability Enhancement',
+            description: `Your step width suggests an opportunity to improve lateral stability. A slightly wider base of support can enhance balance and reduce the risk of ankle injuries during movement.`,
+            severity,
+            affectedSystems: ['Lateral Balance', 'Ankle Stability', 'Base of Support'],
+            parameter: 'Step Width',
+            direction: 'below'
+          });
+        } else if (direction === 'above') {
+          threats.push({
+            id: 'width-wide-1',
+            title: 'Gait Pattern Refinement',
+            description: `Your step width may benefit from adjustment to improve movement efficiency. Working with a movement specialist can help optimize your gait pattern for better balance and energy conservation.`,
+            severity,
+            affectedSystems: ['Gait Mechanics', 'Neurological Function', 'Vestibular System'],
+            parameter: 'Step Width',
+            direction: 'above'
+          });
+        }
+        break;
+
+      case 'Knee Force':
+        if (direction === 'above') {
+          threats.push({
+            id: 'knee-force-high-1',
+            title: 'Joint Health Optimization',
+            description: `Your knee forces suggest an opportunity to reduce joint loading through gait modifications and strength training. Protecting your joints now can support long-term mobility and comfort.`,
+            severity,
+            affectedSystems: ['Knee Cartilage', 'Joint Health', 'Long-term Mobility'],
+            parameter: 'Knee Force',
+            direction: 'above'
+          });
+        }
+        break;
+
+      case 'Frequency':
+        if (direction === 'below') {
+          threats.push({
+            id: 'frequency-low-1',
+            title: 'Movement Rhythm Enhancement',
+            description: `Improving your step frequency can enhance movement coordination and efficiency. Finding your natural rhythm can make walking feel more natural and reduce movement variability.`,
+            severity,
+            affectedSystems: ['Coordination', 'Gait Rhythm', 'Movement Efficiency'],
+            parameter: 'Frequency',
+            direction: 'below'
+          });
+        } else if (direction === 'above') {
+          threats.push({
+            id: 'frequency-high-1',
+            title: 'Energy Efficiency Optimization',
+            description: `Adjusting your step frequency can help improve energy efficiency and reduce fatigue. Finding the right rhythm can make your movements feel more effortless and sustainable.`,
+            severity,
+            affectedSystems: ['Energy Efficiency', 'Endurance', 'Metabolic System'],
+            parameter: 'Frequency',
+            direction: 'above'
+          });
+        }
+        break;
+
+      case 'Gait Symmetry':
+        if (direction === 'below') {
+          threats.push({
+            id: 'symmetry-low-1',
+            title: 'Balance and Symmetry Improvement',
+            description: `Improving gait symmetry can help balance the load between both sides of your body, reducing stress on individual joints and muscles. Targeted exercises can help create more balanced movement patterns.`,
+            severity,
+            affectedSystems: ['Bilateral Balance', 'Muscle Imbalances', 'Joint Loading'],
+            parameter: 'Gait Symmetry',
+            direction: 'below'
+          });
+        }
+        break;
+    }
+
+    return threats;
+  };
+
+  // Calculate all threats from metrics data
+  const allThreats = useMemo(() => {
+    const threats: Threat[] = [];
+    metricsData.forEach(metric => {
+      const metricThreats = getThreatsForParameter(metric);
+      threats.push(...metricThreats);
+    });
+    // Sort by severity (high -> medium -> low), then by parameter
+    const severityOrder = { high: 0, medium: 1, low: 2 };
+    return threats.sort((a, b) => {
+      const severityDiff = severityOrder[a.severity] - severityOrder[b.severity];
+      if (severityDiff !== 0) return severityDiff;
+      return a.parameter.localeCompare(b.parameter);
+    });
+  }, [metricsData]);
+
   const getCategoryStyle = (category: string) => {
     switch (category) {
       case 'Balance': return 'bg-primary/10 text-primary border-primary/20';
@@ -532,12 +869,17 @@ const Comparison = () => {
   };
 
   // Get ML gait score and classification
+  // Use gaitScoreDeterministic from average_scores node, fallback to avgGaitScoreLast20
   const mlGaitScore = useMemo(() => {
-    return typeof mlData?.avgGaitScoreLast20 === 'number' ? mlData.avgGaitScoreLast20 : null;
+    return typeof mlData?.gaitScoreDeterministic === 'number' 
+      ? mlData.gaitScoreDeterministic 
+      : typeof mlData?.avgGaitScoreLast20 === 'number' 
+        ? mlData.avgGaitScoreLast20 
+        : null;
   }, [mlData]);
 
   const mlClassification = useMemo(() => {
-    return mlData?.avgClassificationLast20 ?? null;
+    return mlData?.gaitScoreClassification ?? mlData?.avgClassificationLast20 ?? null;
   }, [mlData]);
 
   // Helper to get score color
@@ -559,34 +901,46 @@ const Comparison = () => {
   const { optimalCount, aboveCount, belowCount, overallScore } = useMemo(() => {
     if (!metricsData.length) return { optimalCount: 0, aboveCount: 0, belowCount: 0, overallScore: 0 };
     
-    const optimal = metricsData.filter(m => getComparisonStatus(m.actual, m.ideal).status === 'optimal').length;
-    const above = metricsData.filter(m => getComparisonStatus(m.actual, m.ideal).status === 'above').length;
-    const below = metricsData.filter(m => getComparisonStatus(m.actual, m.ideal).status === 'below').length;
+    const optimal = metricsData.filter(m => getComparisonStatus(m.actual, m.ideal, m.parameter).status === 'optimal').length;
+    const above = metricsData.filter(m => getComparisonStatus(m.actual, m.ideal, m.parameter).status === 'above').length;
+    const below = metricsData.filter(m => getComparisonStatus(m.actual, m.ideal, m.parameter).status === 'below').length;
     
-    // Use ML gait score if available, otherwise calculate from metrics
+    // Use ML gait score if available (same as Insights page)
     if (mlGaitScore !== null) {
       return { 
         optimalCount: optimal, 
         aboveCount: above, 
         belowCount: below, 
-        overallScore: Math.round(Math.max(0, Math.min(100, mlGaitScore)))
+        overallScore: Math.round(clamp(mlGaitScore, 0, 100))
       };
     }
     
-    // Fallback: Calculate overall score based on how close each metric is to ideal
-    const totalScore = metricsData.reduce((acc, m) => {
-      if (m.ideal === 0) return acc;
-      const ratio = Math.min(m.actual / m.ideal, m.ideal / m.actual);
-      return acc + ratio;
-    }, 0);
+    // Fallback: Use same calculation as Insights page (calculateRawCompositeScore)
+    // Filter and select latest 30 valid entries
+    const latestData =
+      gaitData
+        ?.slice(-30)
+        .filter(
+          (entry) =>
+            entry &&
+            typeof entry.equilibriumScore === 'number' &&
+            typeof entry.cadence === 'number' &&
+            typeof entry.posturalSway === 'number'
+        ) ?? [];
+    
+    // Calculate average raw composite score (same as Insights)
+    const averageRawScore =
+      latestData.length > 0
+        ? latestData.reduce((sum, entry) => sum + calculateRawCompositeScore(entry), 0) / latestData.length
+        : 0;
     
     return { 
       optimalCount: optimal, 
       aboveCount: above, 
       belowCount: below, 
-      overallScore: Math.round((totalScore / metricsData.length) * 100)
+      overallScore: Math.round(clamp(averageRawScore, 0, 100))
     };
-  }, [metricsData, mlGaitScore]);
+  }, [metricsData, mlGaitScore, gaitData]);
 
   // PDF Report Generation
   const generatePDFReport = useCallback(() => {
@@ -723,7 +1077,7 @@ const Comparison = () => {
     // Prepare table data
     const tableData = metricsData.map(metric => {
       const deviation = metric.ideal !== 0 ? ((metric.actual - metric.ideal) / metric.ideal * 100).toFixed(1) : '0.0';
-      const status = getComparisonStatus(metric.actual, metric.ideal).status;
+      const status = getComparisonStatus(metric.actual, metric.ideal, metric.parameter).status;
       const statusText = status === 'optimal' ? '✓ Optimal' : status === 'above' ? '↑ Above' : '↓ Below';
       return [
         metric.parameter,
@@ -789,7 +1143,7 @@ const Comparison = () => {
     yPosition += 10;
 
     const issues = metricsData.filter(m => {
-      const status = getComparisonStatus(m.actual, m.ideal).status;
+      const status = getComparisonStatus(m.actual, m.ideal, m.parameter).status;
       return status !== 'optimal';
     });
 
@@ -803,7 +1157,7 @@ const Comparison = () => {
     } else {
       issues.forEach((metric, index) => {
         checkPageBreak(25);
-        const status = getComparisonStatus(metric.actual, metric.ideal);
+        const status = getComparisonStatus(metric.actual, metric.ideal, metric.parameter);
         const deviation = ((metric.actual - metric.ideal) / metric.ideal * 100).toFixed(1);
         const issueColor = status.status === 'above' ? warningColor : [59, 130, 246] as [number, number, number];
         
@@ -1089,15 +1443,24 @@ const Comparison = () => {
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Cadence:</span>
-                        <span className="font-medium">{Math.round(115 - (tempProfile.height - 170) * 0.15)} steps/min</span>
+                        <span className="font-medium">{Math.max(80, Math.min(135, Math.round(115 - (tempProfile.height - 170) * 0.15)))} steps/min</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Speed:</span>
-                        <span className="font-medium">{((tempProfile.height * 0.53) / 100 * 0.95).toFixed(2)} m/s</span>
+                        <span className="font-medium">
+                          {(() => {
+                            const legLengthM = (tempProfile.height * 0.53) / 100;
+                            const stride = legLengthM * 1.3;
+                            const cadence = Math.max(80, Math.min(135, Math.round(115 - (tempProfile.height - 170) * 0.15)));
+                            const speed1 = (stride * cadence) / 120;
+                            const speed2 = legLengthM * 0.95;
+                            return ((speed1 + speed2) / 2).toFixed(2);
+                          })()} m/s
+                        </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Stride:</span>
-                        <span className="font-medium">{(tempProfile.height * 0.43 / 100).toFixed(2)} m</span>
+                        <span className="font-medium">{(((tempProfile.height * 0.53) / 100) * 1.3).toFixed(2)} m</span>
                       </div>
                     </div>
                   </div>
@@ -1360,6 +1723,13 @@ const Comparison = () => {
               <Lightbulb className="w-4 h-4 mr-2" />
               Insights
             </TabsTrigger>
+            <TabsTrigger 
+              value="threats" 
+              className="px-4 py-2 rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md transition-all"
+            >
+              <Shield className="w-4 h-4 mr-2" />
+              Threats
+            </TabsTrigger>
           </TabsList>
 
           {/* Overview Tab */}
@@ -1447,11 +1817,12 @@ const Comparison = () => {
                     </div>
                   ) : (
                     metricsData.slice(0, 6).map((metric) => {
-                      const comparison = getComparisonStatus(metric.actual, metric.ideal);
+                      const comparison = getComparisonStatus(metric.actual, metric.ideal, metric.parameter);
                       const MetricIcon = metric.icon;
                       const StatusIcon = comparison.icon;
                       const deviation = getDeviationPercent(metric.actual, metric.ideal);
                       const isHovered = hoveredMetric === metric.parameter;
+                      const cat = metric.categorization;
 
                       return (
                         <div 
@@ -1481,6 +1852,22 @@ const Comparison = () => {
                               </div>
                             </div>
                           </div>
+                          
+                          {/* Categorization Badge */}
+                          {cat && (
+                            <div className="mt-2 flex items-center gap-2">
+                              <Badge 
+                                className={`text-[10px] px-2 py-0.5 ${
+                                  cat.color === 'success' ? 'bg-success/20 text-success border-success/30' :
+                                  cat.color === 'primary' ? 'bg-primary/20 text-primary border-primary/30' :
+                                  cat.color === 'warning' ? 'bg-warning/20 text-warning border-warning/30' :
+                                  'bg-purple-500/20 text-purple-400 border-purple-500/30'
+                                } border`}
+                              >
+                                {cat.label}
+                              </Badge>
+                            </div>
+                          )}
                           
                           {/* Expandable details */}
                           <div className={`mt-3 pt-3 border-t border-border/30 transition-all duration-300 ${isHovered ? 'opacity-100 max-h-20' : 'opacity-0 max-h-0 overflow-hidden'}`}>
@@ -1557,7 +1944,7 @@ const Comparison = () => {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {metricsData.map((metric) => {
-                  const comparison = getComparisonStatus(metric.actual, metric.ideal);
+                  const comparison = getComparisonStatus(metric.actual, metric.ideal, metric.parameter);
                   const MetricIcon = metric.icon;
                   const deviation = getDeviationPercent(metric.actual, metric.ideal);
                   const progressPercent = metric.ideal > 0 ? Math.min((metric.actual / metric.ideal) * 100, 150) : 0;
@@ -1629,9 +2016,23 @@ const Comparison = () => {
                         {/* Status */}
                         <div className="flex items-center justify-between pt-2 border-t border-border/30">
                           <span className="text-xs text-muted-foreground transition-colors duration-300 group-hover:text-foreground/70">{metric.relatedTo}</span>
-                          <Badge className={`${comparison.bgColor} ${comparison.color} border-0 text-xs transition-all duration-300 group-hover:scale-110 group-hover:shadow-md`}>
-                            {comparison.status === 'optimal' ? 'Optimal' : comparison.status === 'above' ? 'Above' : comparison.status === 'below' ? 'Below' : 'N/A'}
-                          </Badge>
+                          <div className="flex items-center gap-2">
+                            {metric.categorization && (
+                              <Badge 
+                                className={`text-[10px] px-2 py-0.5 ${
+                                  metric.categorization.color === 'success' ? 'bg-success/20 text-success border-success/30' :
+                                  metric.categorization.color === 'primary' ? 'bg-primary/20 text-primary border-primary/30' :
+                                  metric.categorization.color === 'warning' ? 'bg-warning/20 text-warning border-warning/30' :
+                                  'bg-purple-500/20 text-purple-400 border-purple-500/30'
+                                } border transition-all duration-300 group-hover:scale-110`}
+                              >
+                                {metric.categorization.label}
+                              </Badge>
+                            )}
+                            <Badge className={`${comparison.bgColor} ${comparison.color} border-0 text-xs transition-all duration-300 group-hover:scale-110 group-hover:shadow-md`}>
+                              {comparison.status === 'optimal' ? 'Optimal' : comparison.status === 'above' ? 'Above' : comparison.status === 'below' ? 'Below' : 'N/A'}
+                            </Badge>
+                          </div>
                         </div>
                       </CardContent>
 
@@ -1885,7 +2286,7 @@ const Comparison = () => {
                     </div>
                     <ul className="space-y-3">
                       {metricsData
-                        .filter(m => getComparisonStatus(m.actual, m.ideal).status === 'optimal')
+                        .filter(m => getComparisonStatus(m.actual, m.ideal, m.parameter).status === 'optimal')
                         .slice(0, 3)
                         .map((metric, i) => (
                           <li key={i} className="flex items-start gap-3 text-sm text-muted-foreground">
@@ -1907,10 +2308,10 @@ const Comparison = () => {
                     </div>
                     <ul className="space-y-3">
                       {metricsData
-                        .filter(m => getComparisonStatus(m.actual, m.ideal).status !== 'optimal')
+                        .filter(m => getComparisonStatus(m.actual, m.ideal, m.parameter).status !== 'optimal')
                         .slice(0, 3)
                         .map((metric, i) => {
-                          const status = getComparisonStatus(metric.actual, metric.ideal);
+                          const status = getComparisonStatus(metric.actual, metric.ideal, metric.parameter);
                           const deviation = Math.abs(parseFloat(getDeviationPercent(metric.actual, metric.ideal)));
                           return (
                             <li key={i} className="flex items-start gap-3 text-sm text-muted-foreground">
@@ -1931,6 +2332,161 @@ const Comparison = () => {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Threats Tab */}
+          <TabsContent value="threats" className="space-y-6 mt-0">
+            <div className="space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-red-500/10 border border-red-500/20">
+                  <AlertTriangle className="w-5 h-5 text-red-400" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-foreground">Vulnerability Assessment</h2>
+                  <p className="text-sm text-muted-foreground">Research-based threats associated with non-optimal parameters</p>
+                </div>
+              </div>
+
+              {allThreats.length === 0 ? (
+                <Card className="border-emerald-500/20 bg-emerald-500/5">
+                  <CardContent className="p-6 text-center">
+                    <Shield className="w-12 h-12 text-emerald-400 mx-auto mb-3" />
+                    <p className="text-lg font-semibold text-foreground">No Significant Threats Identified</p>
+                    <p className="text-sm text-muted-foreground">All parameters are within optimal range. No significant vulnerabilities detected.</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="space-y-6">
+                  {/* Group threats by severity */}
+                  {(['high', 'medium', 'low'] as const).map(severityLevel => {
+                    const severityThreats = allThreats.filter(t => t.severity === severityLevel);
+                    if (severityThreats.length === 0) return null;
+
+                    const severityStyles = {
+                      high: { 
+                        border: 'border-red-500/30', 
+                        bg: 'bg-red-500/10', 
+                        text: 'text-red-400', 
+                        badge: 'bg-red-500/20 text-red-400',
+                        headerBg: 'bg-red-500/5',
+                        headerBorder: 'border-red-500/20'
+                      },
+                      medium: { 
+                        border: 'border-amber-500/30', 
+                        bg: 'bg-amber-500/10', 
+                        text: 'text-amber-400', 
+                        badge: 'bg-amber-500/20 text-amber-400',
+                        headerBg: 'bg-amber-500/5',
+                        headerBorder: 'border-amber-500/20'
+                      },
+                      low: { 
+                        border: 'border-yellow-500/30', 
+                        bg: 'bg-yellow-500/10', 
+                        text: 'text-yellow-400', 
+                        badge: 'bg-yellow-500/20 text-yellow-400',
+                        headerBg: 'bg-yellow-500/5',
+                        headerBorder: 'border-yellow-500/20'
+                      },
+                    };
+                    const style = severityStyles[severityLevel];
+
+                    return (
+                      <div key={severityLevel} className="space-y-4">
+                        <Card className={`border ${style.headerBorder} ${style.headerBg}`}>
+                          <CardHeader className="pb-3">
+                            <div className="flex items-center gap-3">
+                              <div className={`p-2 rounded-lg ${style.bg}`}>
+                                <AlertTriangle className={`w-5 h-5 ${style.text}`} />
+                              </div>
+                              <div>
+                                <CardTitle className="text-lg capitalize">{severityLevel} Severity Threats</CardTitle>
+                                <CardDescription>{severityThreats.length} threat{severityThreats.length !== 1 ? 's' : ''} identified</CardDescription>
+                              </div>
+                            </div>
+                          </CardHeader>
+                        </Card>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                          {severityThreats.map((threat) => {
+                            const metric = metricsData.find(m => m.parameter === threat.parameter);
+                            const status = metric ? getComparisonStatus(metric.actual, metric.ideal, metric.parameter) : null;
+                            const deviation = metric ? getDeviationPercent(metric.actual, metric.ideal) : '0.0';
+
+                            return (
+                              <Card 
+                                key={threat.id}
+                                className={`group relative border ${style.border} bg-card/80 backdrop-blur-sm overflow-hidden transition-all duration-500 ease-out hover:shadow-2xl hover:shadow-primary/20 hover:-translate-y-2 hover:scale-[1.02] cursor-pointer`}
+                              >
+                                {/* Animated background gradient on hover */}
+                                <div className={`absolute inset-0 ${style.bg} opacity-30 transition-opacity duration-500 group-hover:opacity-50`} />
+                                
+                                {/* Shine effect on hover */}
+                                <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+                                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-in-out" />
+                                </div>
+
+                                <CardHeader className="relative pb-3 z-10">
+                                  <div className="flex items-start justify-between gap-4">
+                                    <div className="flex items-start gap-3 flex-1">
+                                      <div className={`p-2.5 rounded-xl ${style.bg} transition-all duration-500 group-hover:scale-125 group-hover:rotate-6 group-hover:shadow-lg`}>
+                                        <AlertTriangle className={`w-5 h-5 ${style.text} transition-transform duration-500 group-hover:scale-110`} />
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <CardTitle className="text-base leading-tight transition-colors duration-300 group-hover:text-foreground">{threat.title}</CardTitle>
+                                        <div className="flex items-center gap-2 mt-2">
+                                          <Badge className={`${style.badge} border-0 text-[10px] uppercase transition-all duration-300 group-hover:scale-105`}>
+                                            {threat.severity}
+                                          </Badge>
+                                          <span className="text-xs text-muted-foreground truncate">{threat.parameter}</span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </CardHeader>
+                                <CardContent className="relative z-10 space-y-3">
+                                  <p className="text-sm text-muted-foreground leading-relaxed transition-colors duration-300 group-hover:text-foreground/90">
+                                    {threat.description}
+                                  </p>
+                                  
+                                  {metric && status && (
+                                    <div className="pt-2 border-t border-border/30">
+                                      <div className="flex items-center justify-between text-xs">
+                                        <span className="text-muted-foreground">Current Status:</span>
+                                        <span className={`font-semibold ${status.color}`}>
+                                          {status.status === 'above' ? '↑ Above' : '↓ Below'} ({parseFloat(deviation) > 0 ? '+' : ''}{deviation}%)
+                                        </span>
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  <div className="pt-2">
+                                    <p className="text-xs text-muted-foreground mb-1.5">Affected Systems:</p>
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {threat.affectedSystems.map((system, idx) => (
+                                        <Badge 
+                                          key={idx}
+                                          variant="outline" 
+                                          className="text-[10px] px-1.5 py-0.5 bg-muted/30 border-border/50"
+                                        >
+                                          {system}
+                                        </Badge>
+                                      ))}
+                                    </div>
+                                  </div>
+                                </CardContent>
+
+                                {/* Border glow effect on hover */}
+                                <div className={`absolute inset-0 rounded-lg border-2 ${style.border} opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none`} />
+                              </Card>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </TabsContent>
         </Tabs>
       </div>

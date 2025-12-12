@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: kinova-backend
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: ALLOWED_ORIGINS
+        value: https://your-frontend-url.vercel.app,https://your-frontend-url.netlify.app
+      - key: ENVIRONMENT
+        value: production
+      - key: HF_CHATBOT_API_URL
+        value: https://elizaarora22-gait-analyzer-chatbot.hf.space/chat
+      - key: HF_CHATBOT_API_TOKEN
+        sync: false  # Set this in Render dashboard
+

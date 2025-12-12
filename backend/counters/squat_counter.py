@@ -25,22 +25,33 @@ class FinalSquatCounter:
         self.system_ready = False
         self.stable_frames_required = 18 # Hold standing pose for 18 frames
         self.stable_frame_count = 0
-        self.min_rep_interval = 1.0
+        self.min_rep_interval = 1.0  # Minimum time between reps (balanced to allow normal squat pace)
 
-        # Rep detection: Need 2 consecutive frames in a state
-        self.consecutive_frames_required = 2
+        # Rep detection: Need consecutive frames for stability
+        self.consecutive_frames_required = 4  # Balanced value for stability without being too strict
         self.consecutive_down_frames = 0
         self.consecutive_up_frames = 0
-
-        # Angles: Define UP and DOWN states
-        self.angle_threshold_up = 155 # Angle > 155 degrees is UP (knee and hip)
-        self.angle_threshold_down = 115 # Angle < 115 degrees is DOWN (knee and hip)
+        
+        # Hysteresis for angle thresholds (prevents rapid toggling)
+        self.angle_threshold_up_high = 160  # High threshold when going up
+        self.angle_threshold_up_low = 150   # Low threshold when going down
+        self.angle_threshold_down_high = 125 # High threshold when going up
+        self.angle_threshold_down_low = 105  # Low threshold when going down
+        
+        # Legacy thresholds for backward compatibility
+        self.angle_threshold_up = 155
+        self.angle_threshold_down = 115
 
         # Smoothing: Use mean for responsiveness, moderate buffer size
-        self.smoothing_buffer_size = 8
+        self.smoothing_buffer_size = 10  # Increased for smoother detection
         self.left_knee_buffer = deque(maxlen=self.smoothing_buffer_size)
         self.right_knee_buffer = deque(maxlen=self.smoothing_buffer_size)
         self.hip_buffer = deque(maxlen=self.smoothing_buffer_size) # Using average hip angle
+        
+        # Velocity tracking for movement validation
+        self.angle_velocity_buffer = deque(maxlen=5)  # Track angle change rate
+        self.min_down_velocity = 6.0  # Minimum angle change per frame to count as intentional movement (balanced to allow real squats while preventing false positives)
+        self.max_up_velocity = 25.0  # Maximum angle change - filters out too-fast movements
 
         # Confidence: MediaPipe detection confidence
         self.min_detection_confidence = 0.65
@@ -57,6 +68,12 @@ class FinalSquatCounter:
         self.bad_reps = 0
         self.avg_speed = 0
         self.speeds = []
+        
+        # Anti false-positive measures
+        self.time_in_up_state = 0  # Track how long in UP state
+        self.min_time_in_up_before_rep = 0.5  # Must be UP for 0.5s before starting new rep
+        self.last_angle_at_up_state = 180  # Track angle when entering UP state
+        self.min_angle_difference_for_rep = 30  # Must have at least 30° difference between UP and DOWN
 
         # UI
         self.full_screen = False
@@ -168,6 +185,50 @@ class FinalSquatCounter:
             if results.pose_landmarks:
                 landmarks = results.pose_landmarks.landmark
 
+                # CRITICAL: Check landmark visibility and confidence to prevent false positives
+                # MediaPipe provides visibility (0-1) and presence (0-1) scores
+                required_landmarks = [
+                    self.mp_pose.PoseLandmark.LEFT_HIP,
+                    self.mp_pose.PoseLandmark.RIGHT_HIP,
+                    self.mp_pose.PoseLandmark.LEFT_KNEE,
+                    self.mp_pose.PoseLandmark.RIGHT_KNEE,
+                    self.mp_pose.PoseLandmark.LEFT_ANKLE,
+                    self.mp_pose.PoseLandmark.RIGHT_ANKLE,
+                    self.mp_pose.PoseLandmark.LEFT_SHOULDER,
+                    self.mp_pose.PoseLandmark.RIGHT_SHOULDER,
+                ]
+                
+                # Check if all required landmarks are visible and have good confidence
+                min_visibility = 0.3  # Minimum visibility threshold (lowered to allow more detection flexibility)
+                all_landmarks_visible = True
+                for landmark_idx in required_landmarks:
+                    landmark = landmarks[landmark_idx.value]
+                    # Check visibility (MediaPipe provides this)
+                    if hasattr(landmark, 'visibility') and landmark.visibility < min_visibility:
+                        all_landmarks_visible = False
+                        break
+                    # Check if landmark is within frame bounds (not too far outside)
+                    if landmark.x < -0.2 or landmark.x > 1.2 or landmark.y < -0.2 or landmark.y > 1.2:
+                        all_landmarks_visible = False
+                        break
+                
+                # If landmarks are not reliable, reset system and skip processing
+                if not all_landmarks_visible:
+                    if self.system_ready:
+                        # Reset if we were ready but landmarks became unreliable
+                        self.system_ready = False
+                        self.stable_frame_count = 0
+                        self.stage = None
+                        print("⚠️ Landmarks unreliable - resetting system")
+                    # Draw landmarks but don't process counting
+                    if self.mp_drawing:
+                        self.mp_drawing.draw_landmarks(
+                            frame, results.pose_landmarks, self.mp_pose.POSE_CONNECTIONS,
+                            self.mp_drawing.DrawingSpec(color=(0, 0, 255), thickness=2, circle_radius=2),
+                            self.mp_drawing.DrawingSpec(color=(0, 0, 255), thickness=2)
+                        )
+                    return frame
+
                 # Key points
                 left_hip = [landmarks[self.mp_pose.PoseLandmark.LEFT_HIP.value].x * w, landmarks[self.mp_pose.PoseLandmark.LEFT_HIP.value].y * h]
                 left_knee = [landmarks[self.mp_pose.PoseLandmark.LEFT_KNEE.value].x * w, landmarks[self.mp_pose.PoseLandmark.LEFT_KNEE.value].y * h]
@@ -187,6 +248,15 @@ class FinalSquatCounter:
                 # Smooth average angles
                 avg_knee_angle = self.smooth_value(self.left_knee_buffer, (left_knee_angle + right_knee_angle) / 2)
                 avg_hip_angle = self.smooth_value(self.hip_buffer, (left_hip_angle + right_hip_angle) / 2)
+                
+                # Calculate velocity (rate of angle change)
+                if len(self.angle_velocity_buffer) == 0:
+                    self.angle_velocity_buffer.append(avg_knee_angle)
+                else:
+                    angle_change = abs(avg_knee_angle - self.angle_velocity_buffer[-1])
+                    # Store both current angle and velocity for tracking
+                    self.angle_velocity_buffer.append(avg_knee_angle)
+                current_velocity = abs(avg_knee_angle - self.angle_velocity_buffer[-2]) if len(self.angle_velocity_buffer) >= 2 else 0
 
                 # Check knee alignment
                 knee_alignment_ok = self.calculate_knee_alignment(left_knee, right_knee, left_ankle, right_ankle)
@@ -195,59 +265,166 @@ class FinalSquatCounter:
 
                 # --- READY STATE LOGIC ---
                 if not self.system_ready:
-                    if avg_knee_angle > self.angle_threshold_up and avg_hip_angle > self.angle_threshold_up:
+                    # Require both knees and hips to be in upright position with stability
+                    # Also check that angles are stable (not moving much)
+                    current_velocity = abs(avg_knee_angle - self.angle_velocity_buffer[-2]) if len(self.angle_velocity_buffer) >= 2 else 0
+                    is_stable = current_velocity < 3.0  # Low velocity = standing still
+                    
+                    if (avg_knee_angle > self.angle_threshold_up_high and 
+                        avg_hip_angle > self.angle_threshold_up_high and
+                        knee_alignment_ok and
+                        is_stable):  # Must be standing still, not moving
                         self.stable_frame_count = min(self.stable_frame_count + 1, self.stable_frames_required)
                         if self.stable_frame_count >= self.stable_frames_required:
                             self.system_ready = True
                             self.stage = "UP"
                             self.last_stage = "UP"
+                            self.last_angle_at_up_state = avg_knee_angle  # Initialize UP angle
+                            self.time_in_up_state = self.min_time_in_up_before_rep  # Start with timer ready
                             print("✅ System Ready - Start Squats!")
                     else:
-                        self.stable_frame_count = max(0, self.stable_frame_count - 1)
+                        # Reset if movement detected or not in correct position
+                        self.stable_frame_count = max(0, self.stable_frame_count - 2)  # Decrease faster when not ready
 
                 # --- COUNTING LOGIC (Only if ready) ---
                 if self.system_ready:
-                    # Determine potential stage
-                    if avg_knee_angle > self.angle_threshold_up and avg_hip_angle > self.angle_threshold_up:
+                    # ADDITIONAL SAFETY: Check if person is still in frame and visible
+                    # Reset if angles are extremely unrealistic (likely false positive)
+                    # More lenient range to allow deep squats
+                    if avg_knee_angle < 30 or avg_knee_angle > 185 or avg_hip_angle < 30 or avg_hip_angle > 185:
+                        # Unrealistic angles - likely false detection
+                        self.system_ready = False
+                        self.stable_frame_count = 0
+                        self.stage = None
+                        print("⚠️ Unrealistic angles detected - resetting system")
+                        if self.mp_drawing:
+                            self.mp_drawing.draw_landmarks(
+                                frame, results.pose_landmarks, self.mp_pose.POSE_CONNECTIONS,
+                                self.mp_drawing.DrawingSpec(color=(0, 0, 255), thickness=2, circle_radius=2),
+                                self.mp_drawing.DrawingSpec(color=(0, 0, 255), thickness=2)
+                            )
+                        return frame
+                    
+                    # Calculate current velocity from angle buffer
+                    current_velocity = abs(avg_knee_angle - self.angle_velocity_buffer[-2]) if len(self.angle_velocity_buffer) >= 2 else 0
+                    
+                    # Track time in UP state to prevent rapid false counts
+                    if self.stage == "UP":
+                        self.time_in_up_state += (1/30)  # Assuming ~30 FPS
+                    else:
+                        self.time_in_up_state = 0
+                    
+                    # Determine potential stage with hysteresis
+                    is_up = False
+                    is_down = False
+                    
+                    if self.stage == "UP" or self.stage is None:
+                        # When in UP or starting, use high threshold to go down
+                        is_up = (avg_knee_angle > self.angle_threshold_up_low and 
+                                avg_hip_angle > self.angle_threshold_up_low)
+                        # Stricter: require significant movement AND must be in UP for minimum time
+                        is_down = (avg_knee_angle < self.angle_threshold_down_high and 
+                                  avg_hip_angle < self.angle_threshold_down_high and
+                                  current_velocity > self.min_down_velocity and
+                                  self.time_in_up_state >= self.min_time_in_up_before_rep)  # Must be UP long enough
+                    else:  # self.stage == "DOWN"
+                        # When in DOWN, use low threshold to come back up
+                        is_up = (avg_knee_angle > self.angle_threshold_up_high and 
+                                avg_hip_angle > self.angle_threshold_up_high)
+                        is_down = (avg_knee_angle < self.angle_threshold_down_low and 
+                                  avg_hip_angle < self.angle_threshold_down_low)
+                    
+                    # Update consecutive frame counters
+                    if is_up:
                         self.consecutive_up_frames += 1
                         self.consecutive_down_frames = 0
                         current_stage_potential = "UP"
-                    elif avg_knee_angle < self.angle_threshold_down and avg_hip_angle < self.angle_threshold_down:
+                    elif is_down:
                         self.consecutive_down_frames += 1
                         self.consecutive_up_frames = 0
                         current_stage_potential = "DOWN"
                     else:
-                        self.consecutive_up_frames = 0
-                        self.consecutive_down_frames = 0
+                        # In transition zone - don't change stage immediately
+                        self.consecutive_up_frames = max(0, self.consecutive_up_frames - 1)
+                        self.consecutive_down_frames = max(0, self.consecutive_down_frames - 1)
                         current_stage_potential = self.stage
 
-                    # Confirm stage change
+                    # Confirm stage change with velocity validation
                     if current_stage_potential == "UP" and self.consecutive_up_frames >= self.consecutive_frames_required:
                         if self.stage == "DOWN":
-                            self.counter += 1
-                            if self.rep_start_time:
+                            # Validate the rep was complete - must have actually gone down and back up
+                            if self.rep_start_time and (current_time - self.last_rep_time) > self.min_rep_interval:
+                                # Calculate minimum angle reached during the rep
+                                all_knee_angles = list(self.left_knee_buffer) + list(self.right_knee_buffer)
+                                min_angle = min(all_knee_angles) if all_knee_angles else avg_knee_angle
+                                
+                                # STRICT VALIDATION: Only count if:
+                                # 1. Minimum depth was reached (actually squatted)
+                                # 2. Current position is UP (came back up)
+                                # 3. Rep time is reasonable
+                                # 4. There was actual movement (velocity check)
+                                # 5. Significant angle difference (went from UP to DOWN)
                                 rep_time = current_time - self.rep_start_time
-                                self.speeds.append(rep_time)
-                                self.avg_speed = np.mean(self.speeds[-10:]) if self.speeds else 0
+                                
+                                # Check if we actually squatted (went deep enough)
+                                actually_went_down = min_angle < self.angle_threshold_down_low
+                                # Check if we're actually back up
+                                actually_back_up = avg_knee_angle > self.angle_threshold_up_high and avg_hip_angle > self.angle_threshold_up_high
+                                # Check if there was meaningful movement during the rep
+                                has_movement = rep_time > 0.5  # At least half a second
+                                # Check if we had significant angle change (prevent noise)
+                                angle_difference = self.last_angle_at_up_state - min_angle
+                                significant_angle_change = angle_difference >= self.min_angle_difference_for_rep
+                                
+                                if (actually_went_down and actually_back_up and has_movement and 
+                                    significant_angle_change and 0.5 < rep_time < 8.0):
+                                    self.counter += 1
+                                    self.speeds.append(rep_time)
+                                    self.avg_speed = np.mean(self.speeds[-10:]) if self.speeds else 0
 
-                                min_angle = min(list(self.left_knee_buffer) + list(self.right_knee_buffer)) if self.left_knee_buffer else avg_knee_angle
-                                if self.detect_squat_quality(min_angle, knee_alignment_ok, rep_time):
-                                    self.good_reps += 1
-                                    print(f"✅ Rep #{self.counter} (Good) - Time: {rep_time:.2f}s")
+                                    if self.detect_squat_quality(min_angle, knee_alignment_ok, rep_time):
+                                        self.good_reps += 1
+                                        print(f"✅ Rep #{self.counter} (Good) - Time: {rep_time:.2f}s, Depth: {min_angle:.1f}°, Change: {angle_difference:.1f}°")
+                                    else:
+                                        self.bad_reps += 1
+                                        print(f"⚠️ Rep #{self.counter} (Bad) - Time: {rep_time:.2f}s, Depth: {min_angle:.1f}°, Change: {angle_difference:.1f}°")
+                                    self.last_rep_time = current_time
+                                    self.last_angle_at_up_state = avg_knee_angle  # Update for next rep
                                 else:
-                                    self.bad_reps += 1
-                                    print(f"⚠️ Rep #{self.counter} (Bad) - Time: {rep_time:.2f}s")
-                                self.last_rep_time = current_time
+                                    # Reset without counting - false positive prevented
+                                    if self.rep_start_time:
+                                        print(f"⚠️ False positive prevented - Depth: {min_angle:.1f}°, Up: {actually_back_up}, Time: {rep_time:.2f}s, AngleChange: {angle_difference:.1f}°")
                             self.rep_start_time = None
+                            self.time_in_up_state = 0  # Reset timer
+                        else:
+                            # Just entered UP state - record the angle
+                            if self.stage != "UP":
+                                self.last_angle_at_up_state = avg_knee_angle
                         self.stage = "UP"
 
                     elif current_stage_potential == "DOWN" and self.consecutive_down_frames >= self.consecutive_frames_required:
-                        if self.stage == "UP":
-                            self.rep_start_time = current_time
-                            self.left_knee_buffer.clear()
-                            self.right_knee_buffer.clear()
-                            print(f"🏋️ Rep #{self.counter + 1} - Going down...")
-                        self.stage = "DOWN"
+                        # Only start new rep if we were in UP and enough time has passed
+                        # ADDITIONAL: Must have been in UP state for minimum time
+                        if (self.stage == "UP" and 
+                            (current_time - self.last_rep_time) > self.min_rep_interval and
+                            self.time_in_up_state >= self.min_time_in_up_before_rep):
+                            # STRICT VALIDATION: Only start rep if:
+                            # 1. We're actually moving down (velocity check)
+                            # 2. Velocity isn't too fast (prevent noise)
+                            # 3. We're actually in a DOWN position (angles confirm)
+                            # 4. We've been stable in UP position long enough
+                            if current_velocity > self.min_down_velocity and current_velocity < self.max_up_velocity:
+                                # Additional check: verify we're actually going down (angles decreasing)
+                                self.rep_start_time = current_time
+                                self.left_knee_buffer.clear()
+                                self.right_knee_buffer.clear()
+                                self.angle_velocity_buffer.clear()
+                                self.last_angle_at_up_state = avg_knee_angle  # Record starting angle
+                                print(f"🏋️ Rep #{self.counter + 1} - Going down...")
+                                self.stage = "DOWN"
+                            else:
+                                # Ignore if no actual movement detected
+                                pass
 
                 # --- DRAWING ---
                 landmark_radius = max(2, int(3 * self.current_scale))

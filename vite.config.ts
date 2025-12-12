@@ -4,10 +4,9 @@ import path from "path";
 import { componentTagger } from "lovable-tagger";
 
 // Backend proxy configuration
-// For local development: use http://localhost:8000
-// For production: change to your deployed backend URL
+// Configured for localhost backend
 const apiProxy: ProxyOptions = {
-  target: "http://localhost:8000", // Change this to your backend URL if needed
+  target: "http://localhost:8000",
   changeOrigin: true,
   secure: false,
   rewrite: (path) => path.replace(/^\/api/, ""),
@@ -16,7 +15,7 @@ const apiProxy: ProxyOptions = {
 export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
-    port: 8080,
+    port: 5173, // Standard Vite port
     proxy: {
       "/api": apiProxy,
     },
@@ -28,7 +27,7 @@ export default defineConfig(({ mode }) => ({
 
   // Handle SPA routing in preview mode as well
   preview: {
-    port: 8080,
+    port: 5173,
   },
 
   // Build configuration

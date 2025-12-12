@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { resetPassword } from '@/services/authService';
 
 const ForgotPassword: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -13,6 +14,8 @@ const ForgotPassword: React.FC = () => {
   
   const [email, setEmail] = useState('');
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     document.title = 'Forgot Password - Gait Analysis';
@@ -35,10 +38,19 @@ const ForgotPassword: React.FC = () => {
     );
   }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('Reset password email sent to:', email);
-    setIsSubmitted(true);
+    setError('');
+    setIsLoading(true);
+
+    try {
+      await resetPassword(email);
+      setIsSubmitted(true);
+    } catch (err: any) {
+      setError(err.message || 'Failed to send password reset email. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   if (isSubmitted) {
@@ -96,6 +108,11 @@ const ForgotPassword: React.FC = () => {
         
         <div className="bg-card rounded-2xl shadow-xl p-6 md:p-8 border">
           <form ref={formRef} onSubmit={handleSubmit} className="space-y-6">
+            {error && (
+              <div className="text-sm text-red-500 text-center bg-red-50 dark:bg-red-900/20 p-3 rounded-lg">
+                {error}
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="email" className="text-sm font-medium text-foreground">
                 Email Address
@@ -117,9 +134,9 @@ const ForgotPassword: React.FC = () => {
             <Button 
               type="submit" 
               className="w-full h-12 text-base font-medium"
-              disabled={!email}
+              disabled={!email || isLoading}
             >
-              Send Reset Link
+              {isLoading ? 'Sending...' : 'Send Reset Link'}
             </Button>
             
             <div className="text-center">

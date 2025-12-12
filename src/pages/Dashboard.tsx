@@ -17,6 +17,15 @@ import {
 
 import { gsap } from 'gsap';
 import { useGaitMetrics } from '@/hooks/useGaitMetrics';
+import {
+  categorizeWalkingSpeed,
+  categorizeCadence,
+  categorizeStrideLength,
+  categorizePosturalSway,
+  categorizeEquilibriumScore,
+  categorizeStepWidth,
+  categorizeKneeForce,
+} from '@/utils/gaitCategorization';
 
 export default function Dashboard() {
   const headerRef = useRef<HTMLDivElement>(null);
@@ -105,7 +114,7 @@ export default function Dashboard() {
     stepWidth: <Footprints className="h-5 w-5" />,
     kneeForce: <Weight className="h-5 w-5" />,
     walkingSpeed: <TrendingUp className="h-5 w-5" />,
-    gaitSymmetry: <Target className="h-5 w-5" />,
+    footPressure: <Footprints className="h-5 w-5" />,
   };
 
   // Format with proper null checking
@@ -119,68 +128,82 @@ export default function Dashboard() {
     return 'N/A';
   };
 
+  // Categorize each metric
+  const equilibriumCat = categorizeEquilibriumScore(latestGaitEntry.equilibriumScore);
+  const posturalSwayCat = categorizePosturalSway(latestGaitEntry.posturalSway);
+  const cadenceCat = categorizeCadence(latestGaitEntry.cadence);
+  const kneeForceCat = categorizeKneeForce(latestGaitEntry.kneeForce);
+  const walkingSpeedCat = categorizeWalkingSpeed(latestGaitEntry.walkingSpeed);
+  const stepWidthCat = categorizeStepWidth(latestGaitEntry.stepWidth);
+  const strideLengthCat = categorizeStrideLength(latestGaitEntry.strideLength);
+  
+  // Format pressure values for display
+  const pressureLeft = latestGaitEntry.pressureLeft ?? 0;
+  const pressureRight = latestGaitEntry.pressureRight ?? 0;
+
   const formattedGaitMetrics = [
     {
       title: "Steps",
       value: formatValue(latestGaitEntry.steps, 0),
       unit: "steps",
-      
+      status: "LIVE",
       icon: iconMap.stepWidth,
       color: "purple" as const,
     },
     {
       title: "Equilibrium",
-      value: formatValue(latestGaitEntry.equilibriumScore, 6),
-      
+      value: formatValue(latestGaitEntry.equilibriumScore, 2),
+      unit: "",
+      status: equilibriumCat.label,
       icon: iconMap.equilibrium,
-      color: "success" as const,
+      color: equilibriumCat.color,
     },
     {
       title: "Postural Sway",
-      value: formatValue(latestGaitEntry.posturalSway, 6),
+      value: formatValue(latestGaitEntry.posturalSway, 2),
       unit: "deg",
-      
+      status: posturalSwayCat.label,
       icon: iconMap.posturalSway,
-      color: "primary" as const,
+      color: posturalSwayCat.color,
     },
     {
       title: "Cadence",
-      value: formatValue(latestGaitEntry.cadence, 5),
+      value: formatValue(latestGaitEntry.cadence, 2),
       unit: "steps/min",
-     
+      status: cadenceCat.label,
       icon: iconMap.cadence,
-      color: "success" as const,
+      color: cadenceCat.color,
     },
     {
       title: "Frequency",
-      value: formatValue(latestGaitEntry.frequency, 6),
+      value: formatValue(latestGaitEntry.frequency, 2),
       unit: "Hz",
-      
+      status: "LIVE",
       icon: iconMap.frequency,
       color: "warning" as const,
     },
     {
-      title: "Knee Force",
-      value: formatValue(latestGaitEntry.kneeForce, 6),
-      unit: "N",
-     
+      title: "Knee Acc",
+      value: formatValue(latestGaitEntry.kneeForce, 2),
+      unit: "g",
+      status: kneeForceCat.label,
       icon: iconMap.kneeForce,
-      color: "success" as const,
+      color: kneeForceCat.color,
     },
     {
       title: "Walking Speed",
-      value: formatValue(latestGaitEntry.walkingSpeed, 6),
+      value: formatValue(latestGaitEntry.walkingSpeed, 2),
       unit: "m/s",
-      
+      status: walkingSpeedCat.label,
       icon: iconMap.walkingSpeed,
-      color: "warning" as const,
+      color: walkingSpeedCat.color,
     },
     {
-      title: "Gait Symmetry",
-      value: formatValue(latestGaitEntry.gaitSymmetry, 2),
-      unit: "%",
-     
-      icon: iconMap.gaitSymmetry,
+      title: "Foot Pressure",
+      value: `${formatValue(pressureLeft, 1)} | ${formatValue(pressureRight, 1)}`,
+      unit: "L | R",
+      status: "LIVE",
+      icon: iconMap.footPressure,
       color: "primary" as const,
     },
   ];
@@ -188,25 +211,25 @@ export default function Dashboard() {
   const formattedSensorData = [
     {
       label: "Equilibrium",
-      value: formatValue(latestGaitEntry.equilibriumScore, 6),
+      value: formatValue(latestGaitEntry.equilibriumScore, 2),
       status: "LIVE",
       color: "success" as const,
     },
     {
       label: "Cadence",
-      value: `${formatValue(latestGaitEntry.cadence, 5)} steps/min`,
+      value: `${formatValue(latestGaitEntry.cadence, 2)} steps/min`,
       status: "LIVE",
       color: "primary" as const,
     },
     {
       label: "Walking Speed",
-      value: `${formatValue(latestGaitEntry.walkingSpeed, 6)} m/s`,
+      value: `${formatValue(latestGaitEntry.walkingSpeed, 2)} m/s`,
       status: "LIVE",
       color: "warning" as const,
     },
     {
       label: "Postural Sway",
-      value: `${formatValue(latestGaitEntry.posturalSway, 6)} mm`,
+      value: `${formatValue(latestGaitEntry.posturalSway, 2)} mm`,
       status: "LIVE",
       color: "purple" as const,
     },

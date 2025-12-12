@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, useNavigate, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useNavigate, useLocation, Navigate } from "react-router-dom";
 import { MainLayout } from "./components/layout/MainLayout";
 import Dashboard from "./pages/Dashboard";
 import WorkoutTracker from "./pages/WorkoutTracker";
@@ -15,6 +15,8 @@ import SignUp from "./pages/SignUp";
 import NotFound from "./pages/NotFound";
 import ForgotPassword from "./pages/ForgotPassword";
 import Comparison from "./pages/Comparison";
+import Profile from "./pages/Profile";
+import { AuthProvider, useAuth } from "./contexts/AuthContext";
 
 const queryClient = new QueryClient();
 
@@ -36,74 +38,120 @@ const RedirectHandler = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
+// Protected Route Component
+const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+  const { isAuthenticated, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/sign-in" replace />;
+  }
+
+  return <>{children}</>;
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <RedirectHandler>
-          <Routes>
-            {/* Authentication Routes */}
-            <Route path="/sign-in" element={<SignIn />} />
-            <Route path="/sign-up" element={<SignUp />} />
-            <Route path="/forgot-password" element={<ForgotPassword/>} />
-            
-            {/* Main App Routes */}
-            <Route
-              path="/"
-              element={
-                <MainLayout>
-                  <Dashboard />
-                </MainLayout>
-              }
-            />
-            <Route
-              path="/live-view"
-              element={
-                <MainLayout>
-                <WorkoutTracker/>
-                </MainLayout>
-              }
-            />
-            <Route
-              path="/comparison"
-              element={
-                <MainLayout>
-                  <Comparison />
-                </MainLayout>
-              }
-            />
-            <Route
-              path="/analytics"
-              element={
-                <MainLayout>
-                  <Analytics />
-                </MainLayout>
-              }
-            />
-            <Route
-              path="/insights"
-              element={
-                <MainLayout>
-                  <Insights />
-                </MainLayout>
-              }
-            />
-            <Route
-              path="/chatbot"
-              element={
-                <MainLayout>
-                  <Chatbot />
-                </MainLayout>
-              }
-            />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </RedirectHandler>
-      </BrowserRouter>
-    </TooltipProvider>
+    <AuthProvider>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <RedirectHandler>
+            <Routes>
+              {/* Authentication Routes */}
+              <Route path="/sign-in" element={<SignIn />} />
+              <Route path="/sign-up" element={<SignUp />} />
+              <Route path="/forgot-password" element={<ForgotPassword/>} />
+              
+              {/* Main App Routes - Protected */}
+              <Route
+                path="/"
+                element={
+                  <ProtectedRoute>
+                    <MainLayout>
+                      <Dashboard />
+                    </MainLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/live-view"
+                element={
+                  <ProtectedRoute>
+                    <MainLayout>
+                      <WorkoutTracker/>
+                    </MainLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/comparison"
+                element={
+                  <ProtectedRoute>
+                    <MainLayout>
+                      <Comparison />
+                    </MainLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/analytics"
+                element={
+                  <ProtectedRoute>
+                    <MainLayout>
+                      <Analytics />
+                    </MainLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/profile"
+                element={
+                  <ProtectedRoute>
+                    <MainLayout>
+                      <Profile />
+                    </MainLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/insights"
+                element={
+                  <ProtectedRoute>
+                    <MainLayout>
+                      <Insights />
+                    </MainLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/chatbot"
+                element={
+                  <ProtectedRoute>
+                    <MainLayout>
+                      <Chatbot />
+                    </MainLayout>
+                  </ProtectedRoute>
+                }
+              />
+              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </RedirectHandler>
+        </BrowserRouter>
+      </TooltipProvider>
+    </AuthProvider>
   </QueryClientProvider>
 );
 

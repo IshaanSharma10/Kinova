@@ -122,7 +122,7 @@ export const MetricCard: React.FC<MetricCardProps> = ({
                 <span className="text-2xl font-bold text-foreground">{value}</span>
                 <span className="text-sm text-muted-foreground">{unit}</span>
               </div>
-              <p className="text-xs text-muted-foreground">{status}</p>
+              <p className="text-xs font-medium text-muted-foreground">{status}</p>
               {trend && (
                 <p className={`text-xs font-medium ${classes.text}`}>{trend}</p>
               )}

@@ -22,7 +22,8 @@ export async function sendChatbotMessage(
   conversationHistory: ChatbotMessage[] = []
 ): Promise<string> {
   try {
-    const response = await fetch('/api/chatbot', {
+    // Use localhost backend
+    const response = await fetch('http://localhost:8000/chatbot', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

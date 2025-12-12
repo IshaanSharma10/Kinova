@@ -35,12 +35,14 @@ export default function Gait3DModel() {
         {/* Orbit Controls */}
         <OrbitControls
           enablePan={false}
+          enableZoom={false}  // Disable zoom to prevent accidental resizing
+          enableRotate={true}  // Keep rotation enabled
           target={[0.3, 0.8, 0]}
           maxPolarAngle={Math.PI / 2}
-
+          minDistance={2.0}  // Set minimum camera distance
+          maxDistance={2.5}  // Set maximum camera distance
           autoRotate={autoRotate}
           autoRotateSpeed={4}   // <-- fixed rotation speed
-
           onStart={() => setAutoRotate(false)}  // STOP rotation on user interaction
         />
       </Canvas>

@@ -45,6 +45,67 @@ export default function WorkoutTracker() {
     isReady: false,
     feedback: 'Position yourself in front of the camera'
   });
+
+  // Send frame to backend for counting (while MediaPipe handles visualization)
+  const sendFrameToBackend = async () => {
+    if (!videoRef.current || !canvasRef.current || !isTracking) return;
+
+    try {
+      // Capture frame to canvas
+      const ctx = canvasRef.current.getContext('2d');
+      if (!ctx) return;
+      
+      ctx.drawImage(videoRef.current, 0, 0, canvasRef.current.width, canvasRef.current.height);
+      
+      // Convert to blob
+      const blob: Blob | null = await new Promise((resolve) =>
+        canvasRef.current!.toBlob(resolve, 'image/jpeg')
+      );
+      
+      if (!blob) return;
+
+      // Prepare workout type for backend
+      const workoutTypeMap: Record<WorkoutType, string> = {
+        squats: 'squats',
+        pushups: 'pushups',
+        lunges: 'lunges'
+      };
+
+      // Send to backend
+      const form = new FormData();
+      form.append('file', blob, 'frame.jpg');
+      form.append('workout_type', workoutTypeMap[selectedWorkout]);
+
+      // Use localhost backend
+      const response = await fetch('http://localhost:8000/process-frame', {
+        method: 'POST',
+        body: form,
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        
+        // Update stats from backend (backend handles all counting logic)
+        if (result.count !== undefined || result.good_reps !== undefined) {
+          setStats(prev => ({
+            ...prev,
+            count: result.count || 0,
+            stage: result.stage as 'UP' | 'DOWN' | null,
+            avgSpeed: result.avg_speed || 0,
+            goodReps: result.good_reps || 0,
+            badReps: result.bad_reps || 0,
+            isReady: result.stage !== null,
+            feedback: result.stage === 'UP' ? 'Ready - Start your rep' : 
+                     result.stage === 'DOWN' ? 'Going down...' : 
+                     'Position yourself in front of the camera'
+          }));
+        }
+      }
+    } catch (err) {
+      // Silently fail - don't interrupt MediaPipe visualization
+      console.error('Backend frame processing error:', err);
+    }
+  };
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -97,7 +158,7 @@ export default function WorkoutTracker() {
     return angleBufferRef.current.reduce((a, b) => a + b, 0) / angleBufferRef.current.length;
   };
 
-  // Process pose landmarks
+  // Process pose landmarks (MediaPipe visualization only - counting done by backend)
   const processPose = (results: any) => {
     if (!results.poseLandmarks || !canvasRef.current) return;
 
@@ -105,10 +166,15 @@ export default function WorkoutTracker() {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Clear canvas
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // Save current video frame first (for backend)
+    if (videoRef.current) {
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset transform
+      ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+      ctx.restore();
+    }
 
-    // Draw landmarks
+    // Draw landmarks overlay
     const landmarks = results.poseLandmarks;
     
     // Draw connections
@@ -201,88 +267,91 @@ export default function WorkoutTracker() {
       ctx.fillText(`${Math.round(rightKneeAngle)}°`, rightKnee[0] - 40, rightKnee[1]);
     }
 
+    // Display angle for visualization (counting is done by backend)
     const smoothedAngle = smoothAngle(avgAngle);
-    processRepLogic(smoothedAngle);
+    
+    // Update angle in stats for display (but don't do counting logic here)
+    setStats(prev => ({ ...prev, avgAngle: smoothedAngle }));
   };
 
-  // Rep counting logic
-  const processRepLogic = (angle: number) => {
-    const currentTime = Date.now() / 1000;
-
-    setStats(prev => {
-      let newStats = { ...prev, avgAngle: angle };
-
-      // Check if system is ready
-      if (!prev.isReady) {
-        if (angle > config.angleThresholdUp) {
-          stableFrameCountRef.current = Math.min(stableFrameCountRef.current + 1, config.stableFramesRequired);
-          if (stableFrameCountRef.current >= config.stableFramesRequired) {
-            newStats.isReady = true;
-            newStats.stage = 'UP';
-            newStats.feedback = 'Ready! Start your workout';
-          } else {
-            const percent = Math.round((stableFrameCountRef.current / config.stableFramesRequired) * 100);
-            newStats.feedback = `Hold position... ${percent}%`;
-          }
-        } else {
-          stableFrameCountRef.current = Math.max(0, stableFrameCountRef.current - 1);
-        }
-        return newStats;
-      }
-
-      // Counting logic
-      if (angle > config.angleThresholdUp) {
-        consecutiveUpFramesRef.current++;
-        consecutiveDownFramesRef.current = 0;
-
-        if (consecutiveUpFramesRef.current >= config.consecutiveFramesRequired && prev.stage === 'DOWN') {
-          // Rep completed
-          if (repStartTimeRef.current) {
-            const repTime = currentTime - repStartTimeRef.current;
-            speedsRef.current.push(repTime);
-            const recentSpeeds = speedsRef.current.slice(-10);
-            const avgSpeed = recentSpeeds.reduce((a, b) => a + b, 0) / recentSpeeds.length;
-
-            const minAngle = Math.min(...angleBufferRef.current);
-            const isGoodRep = minAngle < config.qualityDepthThreshold && repTime > 0.6 && repTime < 5.0;
-
-            newStats.count++;
-            newStats.avgSpeed = avgSpeed;
-            newStats.goodReps = isGoodRep ? prev.goodReps + 1 : prev.goodReps;
-            newStats.badReps = !isGoodRep ? prev.badReps + 1 : prev.badReps;
-            newStats.feedback = isGoodRep ? 'Good rep!' : 'Go deeper for better form';
-            
-            lastRepTimeRef.current = currentTime;
-            repStartTimeRef.current = null;
-          }
-          newStats.stage = 'UP';
-        }
-      } 
-      else if (angle < config.angleThresholdDown) {
-        consecutiveDownFramesRef.current++;
-        consecutiveUpFramesRef.current = 0;
-
-        if (consecutiveDownFramesRef.current >= config.consecutiveFramesRequired && prev.stage === 'UP') {
-          if (currentTime - lastRepTimeRef.current > 0.8) {
-            repStartTimeRef.current = currentTime;
-            angleBufferRef.current = [];
-            newStats.stage = 'DOWN';
-            newStats.feedback = 'Going down...';
-          }
-        }
-      }
-
-      // Dynamic feedback
-      if (newStats.stage === 'DOWN') {
-        if (angle > config.angleThresholdDown + 5) {
-          newStats.feedback = 'Go deeper!';
-        } else if (angle < config.qualityDepthThreshold) {
-          newStats.feedback = 'Good depth!';
-        }
-      }
-
-      return newStats;
+  // Reset function
+  const resetWorkout = () => {
+    // Reset stats
+    setStats({
+      count: 0,
+      stage: null,
+      avgAngle: 0,
+      avgSpeed: 0,
+      goodReps: 0,
+      badReps: 0,
+      isReady: false,
+      feedback: 'Position yourself in front of the camera'
     });
+    
+    // Reset tracking refs
+    stableFrameCountRef.current = 0;
+    consecutiveUpFramesRef.current = 0;
+    consecutiveDownFramesRef.current = 0;
+    repStartTimeRef.current = null;
+    lastRepTimeRef.current = 0;
+    speedsRef.current = [];
+    angleBufferRef.current = [];
+    
+    // Store whether tracking was active before reset
+    const wasTracking = isTracking;
+    
+    // Stop camera first (this stops MediaPipe processing)
+    if (cameraRef.current) {
+      try {
+        cameraRef.current.stop();
+        cameraRef.current = null;
+      } catch (error) {
+        console.warn('Error stopping camera:', error);
+      }
+    }
+    
+    // Cancel any pending animation frames
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = undefined;
+    }
+    
+    // Reset MediaPipe Pose instance
+    // MediaPipe Pose doesn't have a close method, so we nullify it
+    // It will be recreated when startTracking is called again
+    poseRef.current = null;
+    
+    // Clear canvas
+    if (canvasRef.current) {
+      const ctx = canvasRef.current.getContext('2d');
+      if (ctx) {
+        ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+      }
+    }
+    
+    // Reset tracking state
+    setIsTracking(false);
+    
+    // Reset backend counter
+    const workoutTypeMap: Record<WorkoutType, string> = {
+      squats: 'squats',
+      pushups: 'pushups',
+      lunges: 'lunges'
+    };
+    
+    fetch('http://localhost:8000/reset-counter', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `workout_type=${workoutTypeMap[selectedWorkout]}`
+    }).catch(console.error);
+    
+    // Reinitialize MediaPipe if it was tracking before reset
+    if (wasTracking && videoRef.current && videoRef.current.srcObject) {
+      // Small delay to ensure cleanup is complete, then reinitialize
+      setTimeout(() => {
+        startTracking().catch(console.error);
+      }, 200);
+    }
   };
 
   // Start camera and pose detection
@@ -319,10 +388,17 @@ export default function WorkoutTracker() {
 
       // Start camera
       if (videoRef.current) {
+        let frameCount = 0;
         cameraRef.current = new Camera(videoRef.current, {
           onFrame: async () => {
             if (poseRef.current && videoRef.current) {
               await poseRef.current.send({ image: videoRef.current });
+              
+              // Send frame to backend every 4 frames (~8 FPS to backend)
+              frameCount++;
+              if (frameCount % 4 === 0) {
+                sendFrameToBackend();
+              }
             }
           },
           width: 640,
@@ -346,27 +422,6 @@ export default function WorkoutTracker() {
       cameraRef.current.stop();
     }
     setIsTracking(false);
-  };
-
-  // Reset workout
-  const resetWorkout = () => {
-    setStats({
-      count: 0,
-      stage: null,
-      avgAngle: 0,
-      avgSpeed: 0,
-      goodReps: 0,
-      badReps: 0,
-      isReady: false,
-      feedback: 'Position yourself in front of the camera'
-    });
-    consecutiveUpFramesRef.current = 0;
-    consecutiveDownFramesRef.current = 0;
-    stableFrameCountRef.current = 0;
-    angleBufferRef.current = [];
-    speedsRef.current = [];
-    repStartTimeRef.current = null;
-    lastRepTimeRef.current = 0;
   };
 
   // Load MediaPipe scripts
@@ -423,7 +478,7 @@ export default function WorkoutTracker() {
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Workout Tracker</h1>
             <p className="text-muted-foreground mt-1 sm:mt-2 text-sm sm:text-base">
-              AI-powered exercise form tracking with MediaPipe
+              AI-powered exercise form tracking with MediaPipe + Backend counting
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -476,7 +531,7 @@ export default function WorkoutTracker() {
                   />
                   <canvas
                     ref={canvasRef}
-                    className="absolute inset-0 w-full h-full transform scale-x-[-1]"
+                    className="absolute inset-0 w-full h-full transform scale-x-[-1] pointer-events-none"
                   />
                   
                   {!isTracking && (
@@ -527,10 +582,16 @@ export default function WorkoutTracker() {
                   <div className="text-center p-3 bg-success/10 rounded-lg">
                     <div className="text-2xl font-bold text-success">{stats.goodReps}</div>
                     <div className="text-xs text-muted-foreground">Good Form</div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      {stats.count > 0 ? `${Math.round((stats.goodReps / stats.count) * 100)}%` : '0%'}
+                    </div>
                   </div>
                   <div className="text-center p-3 bg-warning/10 rounded-lg">
                     <div className="text-2xl font-bold text-warning">{stats.badReps}</div>
                     <div className="text-xs text-muted-foreground">Needs Work</div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      {stats.count > 0 ? `${Math.round((stats.badReps / stats.count) * 100)}%` : '0%'}
+                    </div>
                   </div>
                 </div>
 
@@ -539,14 +600,16 @@ export default function WorkoutTracker() {
                     <span className="text-muted-foreground">Stage:</span>
                     <span className="font-medium text-foreground">{stats.stage || 'N/A'}</span>
                   </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Angle:</span>
-                    <span className="font-medium text-foreground">{Math.round(stats.avgAngle)}°</span>
-                  </div>
                   {stats.avgSpeed > 0 && (
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Avg Speed:</span>
                       <span className="font-medium text-foreground">{stats.avgSpeed.toFixed(2)}s</span>
+                    </div>
+                  )}
+                  {stats.avgAngle > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Angle:</span>
+                      <span className="font-medium text-foreground">{Math.round(stats.avgAngle)}°</span>
                     </div>
                   )}
                 </div>

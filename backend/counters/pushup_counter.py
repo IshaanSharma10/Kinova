@@ -27,21 +27,32 @@ class FinalBalancedPushUpCounter:
         self.stable_frame_count = 0
         self.min_rep_interval = 0.8
 
-        # Rep detection
-        self.consecutive_frames_required = 3 
+        # Rep detection - increased for stability
+        self.consecutive_frames_required = 5  # Increased from 3
         self.consecutive_down_frames = 0
         self.consecutive_up_frames = 0
 
-        # Angles
+        # Angles with hysteresis
         self.angle_threshold_up_ready = 165 
+        self.angle_threshold_up_high = 160   # High threshold when coming up
+        self.angle_threshold_up_low = 150    # Low threshold when going down
+        self.angle_threshold_down_high = 120 # High threshold when going up
+        self.angle_threshold_down_low = 100  # Low threshold when going down
+        
+        # Legacy thresholds
         self.angle_threshold_up = 155     
         self.angle_threshold_down = 110   
 
         # Smoothing
-        self.smoothing_buffer_size = 8
+        self.smoothing_buffer_size = 10  # Increased for smoother detection
         self.left_elbow_buffer = deque(maxlen=self.smoothing_buffer_size)
         self.right_elbow_buffer = deque(maxlen=self.smoothing_buffer_size) 
         self.shoulder_buffer = deque(maxlen=self.smoothing_buffer_size)
+        
+        # Velocity tracking
+        self.angle_velocity_buffer = deque(maxlen=5)
+        self.min_down_velocity = 8.0   # Increased from 3.0 - Minimum angle change to count as intentional (prevents false positives)
+        self.max_up_velocity = 20.0    # Maximum angle change to filter noise
 
         # Confidence
         self.min_detection_confidence = 0.8 
@@ -140,6 +151,39 @@ class FinalBalancedPushUpCounter:
                 landmarks = results.pose_landmarks.landmark
                 lm = self.mp_pose.PoseLandmark
                 
+                # CRITICAL: Check landmark visibility and confidence to prevent false positives
+                required_landmarks = [
+                    lm.LEFT_SHOULDER, lm.RIGHT_SHOULDER,
+                    lm.LEFT_ELBOW, lm.RIGHT_ELBOW,
+                    lm.LEFT_WRIST, lm.RIGHT_WRIST,
+                    lm.LEFT_HIP, lm.RIGHT_HIP,
+                ]
+                
+                min_visibility = 0.5
+                all_landmarks_visible = True
+                for landmark_idx in required_landmarks:
+                    landmark = landmarks[landmark_idx.value]
+                    if hasattr(landmark, 'visibility') and landmark.visibility < min_visibility:
+                        all_landmarks_visible = False
+                        break
+                    if landmark.x < -0.2 or landmark.x > 1.2 or landmark.y < -0.2 or landmark.y > 1.2:
+                        all_landmarks_visible = False
+                        break
+                
+                if not all_landmarks_visible:
+                    if self.system_ready:
+                        self.system_ready = False
+                        self.stable_frame_count = 0
+                        self.stage = None
+                        print("⚠️ Landmarks unreliable - resetting system")
+                    if self.mp_drawing:
+                        self.mp_drawing.draw_landmarks(
+                            frame, results.pose_landmarks, self.mp_pose.POSE_CONNECTIONS,
+                            self.mp_drawing.DrawingSpec(color=(0, 0, 255), thickness=2, circle_radius=2),
+                            self.mp_drawing.DrawingSpec(color=(0, 0, 255), thickness=2)
+                        )
+                    return frame
+                
                 left_shoulder = [landmarks[lm.LEFT_SHOULDER.value].x * w, landmarks[lm.LEFT_SHOULDER.value].y * h]
                 left_elbow = [landmarks[lm.LEFT_ELBOW.value].x * w, landmarks[lm.LEFT_ELBOW.value].y * h]
                 left_wrist = [landmarks[lm.LEFT_WRIST.value].x * w, landmarks[lm.LEFT_WRIST.value].y * h]
@@ -154,6 +198,14 @@ class FinalBalancedPushUpCounter:
 
                 smooth_left_angle = self.smooth_value(self.left_elbow_buffer, left_elbow_angle)
                 smooth_right_angle = self.smooth_value(self.right_elbow_buffer, right_elbow_angle)
+                avg_elbow_angle = (smooth_left_angle + smooth_right_angle) / 2
+                
+                # Track velocity
+                if len(self.angle_velocity_buffer) == 0:
+                    self.angle_velocity_buffer.append(avg_elbow_angle)
+                else:
+                    self.angle_velocity_buffer.append(avg_elbow_angle)
+                current_velocity = abs(avg_elbow_angle - self.angle_velocity_buffer[-2]) if len(self.angle_velocity_buffer) >= 2 else 0
 
                 shoulder_alignment_ok = self.calculate_shoulder_alignment(left_shoulder, right_shoulder, left_hip, right_hip)
                 
@@ -182,6 +234,20 @@ class FinalBalancedPushUpCounter:
 
                 # --- Counting Logic ---
                 if self.system_ready:
+                    # ADDITIONAL SAFETY: Check for unrealistic angles (false detection)
+                    if smooth_left_angle < 30 or smooth_left_angle > 180 or smooth_right_angle < 30 or smooth_right_angle > 180:
+                        self.system_ready = False
+                        self.stable_frame_count = 0
+                        self.stage = None
+                        print("⚠️ Unrealistic angles detected - resetting system")
+                        if self.mp_drawing:
+                            self.mp_drawing.draw_landmarks(
+                                frame, results.pose_landmarks, self.mp_pose.POSE_CONNECTIONS,
+                                self.mp_drawing.DrawingSpec(color=(0, 0, 255), thickness=2, circle_radius=2),
+                                self.mp_drawing.DrawingSpec(color=(0, 0, 255), thickness=2)
+                            )
+                        return frame
+                    
                     # Reset if plank is lost
                     if not is_plank_posture:
                         self.stage = "UP"
@@ -191,43 +257,68 @@ class FinalBalancedPushUpCounter:
                     
                     # If in a valid plank, run counting logic
                     else:
+                        # Use hysteresis-based detection
+                        is_up = False
+                        is_down = False
+                        
+                        if self.stage == "UP" or self.stage is None:
+                            # When in UP, use lower threshold to go down
+                            is_up = (smooth_left_angle > self.angle_threshold_up_low and 
+                                    smooth_right_angle > self.angle_threshold_up_low)
+                            is_down = (smooth_left_angle < self.angle_threshold_down_high and 
+                                      smooth_right_angle < self.angle_threshold_down_high and
+                                      current_velocity > self.min_down_velocity)
+                        else:  # self.stage == "DOWN"
+                            # When in DOWN, use higher threshold to come up
+                            is_up = (smooth_left_angle > self.angle_threshold_up_high and 
+                                    smooth_right_angle > self.angle_threshold_up_high)
+                            is_down = (smooth_left_angle < self.angle_threshold_down_low and 
+                                      smooth_right_angle < self.angle_threshold_down_low)
+                        
                         current_stage_potential = self.stage
                         
-                        if smooth_left_angle > self.angle_threshold_up and smooth_right_angle > self.angle_threshold_up:
+                        if is_up:
                             self.consecutive_up_frames += 1
                             self.consecutive_down_frames = 0
                             current_stage_potential = "UP"
-                        elif smooth_left_angle < self.angle_threshold_down and smooth_right_angle < self.angle_threshold_down:
+                        elif is_down:
                             self.consecutive_down_frames += 1
                             self.consecutive_up_frames = 0
                             current_stage_potential = "DOWN"
                         else:
-                            self.consecutive_up_frames = 0
-                            self.consecutive_down_frames = 0
+                            # Transition zone
+                            self.consecutive_up_frames = max(0, self.consecutive_up_frames - 1)
+                            self.consecutive_down_frames = max(0, self.consecutive_down_frames - 1)
 
                         # --- Transition to UP (Rep complete) ---
                         if current_stage_potential == "UP" and self.consecutive_up_frames >= self.consecutive_frames_required:
                             if self.stage == "DOWN":
-                                self.counter += 1
-                                if self.rep_start_time:
+                                # Validate rep completion
+                                if self.rep_start_time and (current_time - self.last_rep_time) > self.min_rep_interval:
                                     rep_time = current_time - self.rep_start_time
-                                    if 0.3 < rep_time < 10.0:
-                                        self.speeds.append(rep_time)
-                                        self.avg_speed = np.mean(self.speeds[-10:]) if self.speeds else 0
-                                        
+                                    if 0.5 < rep_time < 8.0:  # Stricter time validation
+                                        # Check minimum depth reached
                                         min_left = min(list(self.left_elbow_buffer)) if self.left_elbow_buffer else smooth_left_angle
                                         min_right = min(list(self.right_elbow_buffer)) if self.right_elbow_buffer else smooth_right_angle
                                         min_angle_this_rep = min(min_left, min_right)
+                                        
+                                        # Only count if minimum depth was reached
+                                        if min_angle_this_rep < self.angle_threshold_down_low:
+                                            self.counter += 1
+                                            self.speeds.append(rep_time)
+                                            self.avg_speed = np.mean(self.speeds[-10:]) if self.speeds else 0
 
-                                        if self.detect_pushup_quality(min_angle_this_rep, shoulder_alignment_ok, rep_time):
-                                            self.good_reps += 1
-                                            print(f"✅ Rep #{self.counter} (Good) - Time: {rep_time:.2f}s")
+                                            if self.detect_pushup_quality(min_angle_this_rep, shoulder_alignment_ok, rep_time):
+                                                self.good_reps += 1
+                                                print(f"✅ Rep #{self.counter} (Good) - Time: {rep_time:.2f}s, Depth: {min_angle_this_rep:.1f}°")
+                                            else:
+                                                self.bad_reps += 1
+                                                print(f"⚠️ Rep #{self.counter} (Bad) - Time: {rep_time:.2f}s, Depth: {min_angle_this_rep:.1f}°")
                                         else:
-                                            self.bad_reps += 1
-                                            print(f"⚠️ Rep #{self.counter} (Bad) - Time: {rep_time:.2f}s")
+                                            print(f"⚠️ Rep #{self.counter + 1} ignored - insufficient depth: {min_angle_this_rep:.1f}°")
                                     else:
-                                         print(f"⚠️ Rep #{self.counter} (Ignored - Unrealistic Time: {rep_time:.2f}s)")
-                                self.last_rep_time = current_time
+                                         print(f"⚠️ Rep #{self.counter + 1} ignored - unrealistic time: {rep_time:.2f}s")
+                                    self.last_rep_time = current_time
                                 self.rep_start_time = None
                             self.stage = "UP"
 
@@ -236,11 +327,13 @@ class FinalBalancedPushUpCounter:
                             # Can only start a rep if we were in UP and plank is held
                             if (self.stage == "UP" and 
                                 (current_time - self.last_rep_time > self.min_rep_interval) and
-                                is_plank_posture): # Redundant check, but good for safety
+                                is_plank_posture and
+                                current_velocity < self.max_up_velocity):  # Prevent false positives
                                 
                                 self.rep_start_time = current_time
                                 self.left_elbow_buffer.clear()
                                 self.right_elbow_buffer.clear()
+                                self.angle_velocity_buffer.clear()
                                 print(f"🏋️ Rep #{self.counter + 1} - Going down...")
                                 self.stage = "DOWN"
 
