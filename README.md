@@ -1,18 +1,9 @@
 <div align="center">
 
-<table>
-<tr>
-<td align="center"><img src="docs/assets/biomech-titans-logo.png" alt="Biomech Titans Logo" width="100"/></td>
-<td align="center">
-
 # 🦿 KINOVA
+
 ### AI-Powered Gait Analysis & Rehabilitation Platform
 **Gait Intelligence for Atmanirbhar Bharat**
-
-</td>
-<td align="center"><img src="docs/assets/sih-logo.png" alt="Smart India Hackathon 2025" width="100"/></td>
-</tr>
-</table>
 
 **By Team BIOMECH TITANS** | 🇮🇳 **Smart India Hackathon 2025**
 
@@ -28,10 +19,6 @@
 **Transforming mobility assessment through real-time biomechanical analysis, machine learning insights, and accessible rehabilitation technology.**
 
 [Live Demo](#-live-demo) • [Features](#-key-features) • [Architecture](#-system-architecture) • [Installation](#-quick-start) • [Research](#-research-foundation)
-
-<br/>
-
-<img src="docs/assets/hero-banner.png" alt="Kinova Dashboard" width="100%"/>
 
 </div>
 
@@ -51,8 +38,6 @@
 
 ### 🏃 01. Risks for Young Athletes
 
-<img src="docs/assets/athlete-icon.png" width="50"/>
-
 *"Junior district and state athletes rarely have access to scientific gait analysis, so **asymmetries and overuse injuries stay hidden** until performance drops."*
 
 </td>
@@ -60,16 +45,12 @@
 
 ### 👴 02. Hidden Toll of Senior Falls
 
-<img src="docs/assets/elderly-fall-icon.png" width="50"/>
-
 *"Each year, **31% of Indian elderly** suffer at least one fall, with **two-thirds leading to injury**. The impact: thousands of crores in medical bills and lifelong disability."*
 
 </td>
 <td width="33%" align="center">
 
 ### 🏥 03. Gait Labs: High Cost, Low Reach
-
-<img src="docs/assets/hospital-icon.png" width="50"/>
 
 *"Gold-standard gait labs cost **₹2-4 crore each**. Fewer than **20 such facilities** exist nationwide—reserved for elite athletes and urban hospitals."*
 
@@ -87,8 +68,6 @@
 
 ### 🏃 Sports Performance & Screening
 
-<img src="docs/assets/sports-icon.png" width="60"/>
-
 District and state academies can use our gait radar to **screen budding athletes for asymmetries and overuse patterns** before they turn into injuries.
 
 **Target Users:** Sports academies, talent scouts, coaches
@@ -97,8 +76,6 @@ District and state academies can use our gait radar to **screen budding athletes
 <td width="50%" align="center">
 
 ### 🏥 Injury Rehab & Return-to-Play
-
-<img src="docs/assets/rehab-icon.png" width="60"/>
 
 Physiotherapists and sports medicine clinics can track gait score, balance and knee loading to **plan rehab and decide safe return-to-sport**.
 
@@ -111,8 +88,6 @@ Physiotherapists and sports medicine clinics can track gait score, balance and k
 
 ### 👴 Mobility & Fall-Risk Monitoring
 
-<img src="docs/assets/elderly-icon.png" width="60"/>
-
 Continuous gait and balance tracking to **flag high fall-risk seniors early** and guide targeted rehab or exercise plans.
 
 **Target Users:** Elderly care facilities, geriatric clinics
@@ -121,8 +96,6 @@ Continuous gait and balance tracking to **flag high fall-risk seniors early** an
 <td width="50%" align="center">
 
 ### 🧳 Portable Field-Side Gait Labs
-
-<img src="docs/assets/portable-icon.png" width="60"/>
 
 Portable, low-cost kit turns any academy, coaching centre or small clinic into a **mini gait lab, delivering lab-grade analytics at the ground level**.
 
@@ -221,25 +194,17 @@ Chatbot + vision module **correct squats and lunges**
 
 ### 📊 Real-Time Gait Dashboard
 
-<img align="right" src="docs/assets/dashboard-preview.png" width="45%"/>
-
 - **Live 3D Gait Visualization** — Interactive skeletal model updated at 30fps
 - **12 Biomechanical Parameters** — Equilibrium, cadence, stride length, postural sway, knee acceleration, and more
 - **Intelligent Categorization** — Automatic classification: Excellent → Good → Fair → Needs Attention
 - **Bilateral Foot Pressure Mapping** — Real-time left/right pressure distribution analysis
 
-<br clear="right"/>
-
 ### 🧠 ML-Powered Insights Engine
-
-<img align="left" src="docs/assets/insights-preview.png" width="45%"/>
 
 - **Deterministic Gait Scoring** — Composite score (0-100) based on weighted biomechanical factors
 - **Predictive Risk Assessment** — Early detection of fall risk, osteoarthritis indicators, and neurological patterns
 - **Personalized Recommendations** — Context-aware suggestions based on user profile and trends
 - **Classification System** — Excellent / Good / Fair / Poor with clinical threshold alignment
-
-<br clear="left"/>
 
 ### 📈 Advanced Analytics
 
@@ -250,14 +215,10 @@ Chatbot + vision module **correct squats and lunges**
 
 ### 🆚 Smart Comparison Engine
 
-<img align="right" src="docs/assets/comparison-preview.png" width="45%"/>
-
 - **Personalized Ideal Parameters** — BMI and height-adjusted optimal ranges
 - **Research-Based Thresholds** — Derived from peer-reviewed biomechanics literature
 - **Visual Deviation Mapping** — Instant identification of parameters needing attention
 - **Health Risk Indicators** — Gentle, supportive threat assessment with affected systems
-
-<br clear="right"/>
 
 ### 💪 AI Workout Tracker
 
@@ -596,21 +557,6 @@ cd backend && uvicorn main:app --reload  # Backend on http://localhost:8000
 
 ---
 
-## 📱 Screenshots
-
-<div align="center">
-<table>
-<tr>
-<td><img src="docs/assets/screen-dashboard.png" width="100%"/><br/><b>Dashboard</b></td>
-<td><img src="docs/assets/screen-analytics.png" width="100%"/><br/><b>Analytics</b></td>
-</tr>
-<tr>
-<td><img src="docs/assets/screen-comparison.png" width="100%"/><br/><b>Comparison</b></td>
-<td><img src="docs/assets/screen-insights.png" width="100%"/><br/><b>ML Insights</b></td>
-</tr>
-</table>
-</div>
-
 ---
 
 ## 🎯 Impact & Metrics
@@ -679,8 +625,6 @@ Cloud-native architecture for millions of users
 ## 👥 Team BIOMECH TITANS
 
 <div align="center">
-
-<img src="docs/assets/biomech-titans-logo.png" alt="Biomech Titans" width="150"/>
 
 *"Engineering the Future of Human Movement Analysis"*
 
