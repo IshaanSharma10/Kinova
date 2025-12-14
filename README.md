@@ -630,10 +630,10 @@ Cloud-native architecture for millions of users
 
 | Member | Role | Contribution |
 |--------|------|--------------|
-| 🧑‍💻 **[Name]** | Lead Developer | Full-stack development, ML integration |
-| 🎨 **[Name]** | UI/UX Designer | User experience, 3D visualizations |
-| 🔬 **[Name]** | Hardware Lead | Sensor integration, embedded systems |
-| 📊 **[Name]** | Research Lead | Biomechanics validation, algorithms |
+| 🧑‍💻 **Ishaan Sharma** | Lead Developer | Full-stack development, ML integration |
+| 🎨 **Ishaan Sharma** | UI/UX Designer | User experience, 3D visualizations |
+| 🔬 **Khushal Grover** | Hardware Lead | Sensor integration, embedded systems |
+| 📊 **Eliza Arora** | Research Lead | Biomechanics validation, algorithms |
 
 </div>
 
